@@ -11,7 +11,7 @@ from data.Tokenizer import PeptideTokenizer, ContinuousValueTokenizer
 
 from sklearn.metrics import f1_score, cohen_kappa_score, matthews_corrcoef
 from scipy.stats import kendalltau, spearmanr
-
+from tqdm import tqdm
 
 def pairwise_logistic_loss(pred_scores, true_scores, min_delta=1.0):
     B = pred_scores.size(0)
@@ -250,13 +250,6 @@ class DeepRT(pl.LightningModule):
 
     def on_test_epoch_end(self):
         self.log_metrics("test")
-        B_targets = torch.cat(self.test_B_target)
-        B_preds = torch.cat(self.test_B_pred)
-        B_probs = torch.cat(self.test_B_probs)
-
-        # plot_predictions(E25_targets, E25_preds, 'E25_performance.png', prob=E25_probs)
-        # plot_predictions(B_targets, B_preds, 'B_performance.png', prob=B_probs)
-
 
 
     def log_metrics(self, mode):
@@ -303,14 +296,33 @@ class DeepRT(pl.LightningModule):
         B_probs_trimmed = B_probs[:, 1:]  # Remove mask index (0)
         B_approx = (B_probs_trimmed * centers).sum(dim=1)  # shape: (B,)
 
-        # Compute entropy
-        entropies = -(B_probs * B_probs.log()).sum(dim=1)
-
         return {
             "sequences":sequences,
             "B_probs":B_probs,
             "B_scores":model_output["B_score"].cpu().numpy()
         }
+    
+    def get_embedding(self, sequences):
+        batch_size = 64
+        AA_embed = []
+        post_transformer = []
+        post_pooling = []
+
+        for i in tqdm(range(0, len(sequences), batch_size)):
+            batch_seqs = sequences[i:i + batch_size]
+
+            # Tokenize and embed
+            sequence_tokens, attention_mask = self.sequence_tokenizer.tokenize_batch(batch_seqs)
+            with torch.no_grad():
+                sequence_embed = self.sequence_embedding(sequence_tokens)
+                x, _,_ = self.transformers(sequence_embed, attention_mask.bool())
+                pooled = self.pooling(x, attention_mask)
+
+                AA_embed.append(sequence_embed.mean(dim=1))
+                post_transformer.append(x.mean(dim=1))
+                post_pooling.append(pooled)
+
+        return torch.cat(AA_embed, dim=0), torch.cat(post_transformer,dim=0), torch.cat(post_pooling, dim=0)
 
 
 
