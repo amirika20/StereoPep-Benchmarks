@@ -1,6 +1,3 @@
-# import os
-# import sys
-# sys.path.append("/home/amirabbas-kazeminia/Projects/DeepRT_test")
 import rich.console
 
 # Backup the original method
@@ -50,14 +47,14 @@ class PepDataModule(pl.LightningDataModule):
         return DataLoader(self.test_set, batch_size=self.batch_size)
 
 
-def train(seed, d_model, n_heads, n_layers, loss_fn):
+def train(seed, d_model, n_heads, n_layers):
     model = DeepRT(d_model=d_model, n_heads=n_heads, n_layers=n_layers)
-    datamodule = PepDataModule(64, random_state=seed)
+    datamodule = PepDataModule(128, random_state=seed)
     logger = TensorBoardLogger("tb_logs", name="testing")
 
     early_stop_callback = EarlyStopping(
         monitor="val_loss",
-        patience=10,
+        patience=20,
         mode="min",
     )
 
@@ -72,28 +69,27 @@ def train(seed, d_model, n_heads, n_layers, loss_fn):
         )
     trainer.fit(model, datamodule=datamodule)
     test_metrics = trainer.test(model, datamodule=datamodule)[0]
-    trainer.save_checkpoint(f"weights/{loss_fn}_{n_layers}layers_best_model_{seed}.ckpt", weights_only=True)
+    trainer.save_checkpoint(f"weights/{n_layers}layers_{n_heads}heads_{d_model}dim_{seed}seed.ckpt", weights_only=True)
     return test_metrics
 
 def k_training():
     all_metrics = []
-    seeds = [10]
-    d_model = 8
+    seeds = [10,20]
+    d_model = 12
     num_heads = 2
-    n_layers = 1
-    loss_fn = "RANK"
+    n_layers = 2
     for index in range(len(seeds)):
         torch.manual_seed(seeds[index])
         torch.cuda.manual_seed(seeds[index])
         torch.cuda.manual_seed_all(seeds[index])
         print(f"\n🔁 Run {index + 1}/{len(seeds)} (random_state = {seeds[index]})")
-        test_metrics = train(seeds[index], d_model, num_heads, n_layers, loss_fn)
+        test_metrics = train(seeds[index], d_model, num_heads, n_layers)
         test_metrics['run'] = index +1
         all_metrics.append(test_metrics)
 
     # Build table
     
-    output_csv = f"/home/amirabbas-kazeminia/Projects/DeepRT/metrics/{loss_fn}_{n_layers}layers_{d_model}input_metrics_summary.csv"
+    output_csv = f"metrics/{n_layers}layers_{num_heads}heads_{d_model}dim_metrics_summary.csv"
     df = pd.DataFrame(all_metrics)
     df.loc['mean'] = df.drop(columns='run').mean(numeric_only=True)
     df.to_csv(output_csv, index=False)

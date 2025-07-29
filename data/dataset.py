@@ -91,6 +91,10 @@ def stratified_split(data_dict, stratify_by, train_size=0.7, val_size=0.15, test
 
     def subset(indices):
         return {k: [v[i] for i in indices] for k, v in data_dict.items()}
+    
+    pd.DataFrame(subset(idx_train)).to_csv(f"data/split/train_{random_state}.csv")
+    pd.DataFrame(subset(idx_val)).to_csv(f"data/split/val_{random_state}.csv")
+    pd.DataFrame(subset(idx_test)).to_csv(f"data/split/test_{random_state}.csv")
 
     return PeptideDataset(subset(idx_train)), PeptideDataset(subset(idx_val)), PeptideDataset(subset(idx_test))
 
