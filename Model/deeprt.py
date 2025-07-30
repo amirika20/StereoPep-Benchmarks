@@ -65,6 +65,8 @@ class DeepRT(pl.LightningModule):
         self.pooling = AttentionPooling(d_model)
         self.B_head = RegressionHead(d_model, self.B_tokenizer.vocab_size)  # Classification over B bins
         self.B_score_head = RegressionHead(d_model, 1)  # Scalar for ranking B scores
+        self.Z_head = RegressionHead(d_model, 10)  # Scalar for ranking B scores
+        self.M_head = RegressionHead(d_model, 1)  # Scalar for ranking B scores
 
         # === Misc state ===
         self.test_B_pred = []
@@ -86,12 +88,15 @@ class DeepRT(pl.LightningModule):
         pooled = self.pooling(x)
         B_logits = self.B_head(pooled)         # Discrete B prediction
         B_score = self.B_score_head(pooled)    # Continuous B score for ranking
-
+        Z_logits = self.Z_head(pooled)
+        M_pred = self.M_head(pooled)
 
         return {
             "B_logits": B_logits,      # (B, V)
             "embedding": x,           # (B, L, d_model)
-            "B_score": B_score.squeeze()  # (B,)
+            "B_score": B_score.squeeze(),  # (B,)
+            "Z_logits": Z_logits,
+            "M_pred": M_pred.squeeze()
         }
 
     def _step(self, batch, batch_idx, mode):
@@ -104,17 +109,20 @@ class DeepRT(pl.LightningModule):
 
         # === Loss: KL-divergence for classification + pairwise logistic for ranking ===
         B_logits = model_output["B_logits"]
-        B_score = model_output["B_score"]
-
         B_loss = F.kl_div(
             F.log_softmax(B_logits, dim=-1), batch["B_soft"],
             reduction='batchmean'
         )
-        # B_loss = F.cross_entropy(B_logits, batch["B_tokens"], ignore_index=0, label_smoothing=0.01)
+
+        # === Loss: KL-divergence for classification + pairwise logistic for ranking ===
+        B_score = model_output["B_score"]
         pairwise_loss = pairwise_logistic_loss(B_score, batch["B"])
 
+        Z_loss = F.cross_entropy(model_output["Z_logits"],batch["Z"])
 
-        total_loss = B_loss + pairwise_loss
+        M_loss = F.mse_loss(model_output["M_pred"], batch["M"])
+
+        total_loss = B_loss + 0.25*pairwise_loss + 0.25*Z_loss + 0.25*M_loss
 
         # === Log learning rate ===
         lr = self.trainer.optimizers[0].param_groups[0]['lr'] * 1e6
@@ -179,9 +187,10 @@ class DeepRT(pl.LightningModule):
         B = B_logits.size(0)
 
         # ----- Predictions -----
-        probs = F.softmax(B_logits, dim=1)
+        probs = F.softmax(B_logits[:,1:], dim=1)
         B_preds = B_logits.argmax(dim=-1)
         topk_preds = probs.topk(k=k, dim=1).indices
+        Z_preds = model_output['Z_logits'].argmax(dim=-1)
 
         # ----- Classification Metrics -----
         y_true = B_tokens.cpu().numpy()
@@ -206,7 +215,7 @@ class DeepRT(pl.LightningModule):
 
         # ----- B Approximation -----
         centers = torch.arange(5, 100, 10).unsqueeze(0)  # assumes bins [5,10,...95]
-        B_pred_vals = (probs[:, 1:].cpu() * centers).sum(dim=1)  # skip index 0 (e.g. mask)
+        B_pred_vals = (probs.cpu() * centers).sum(dim=1)  # skip index 0 (e.g. mask)
         cls_kendall = kendalltau(B_true_vals, B_pred_vals).correlation
         cls_spearman = spearmanr(B_true_vals, B_pred_vals).correlation
 
@@ -230,11 +239,13 @@ class DeepRT(pl.LightningModule):
         # ----- Return All Metrics -----
         return {
             "B_acc": (B_preds == B_tokens).float().mean().item(),
+            "Z_acc": (Z_preds == batch['Z']).float().mean().item(),
             "f1_macro": f1_macro,
             "cohen_kappa": cohen_kappa,
             "mcc": mcc,
             f"top{k}_acc": topk_acc.item(),
             "B_MSE": F.mse_loss(B_pred_vals, B_true_vals).item(),
+            "M_MSE": F.mse_loss(model_output['M_pred'],batch["M"]).item(),
             "rank_kendall_tau": rank_kendall,
             "rank_spearman": rank_spearman,
             "cls_kendall_tau": cls_kendall,
@@ -289,11 +300,11 @@ class DeepRT(pl.LightningModule):
         with torch.no_grad():
             model_output = self(sequence_tokens, attention_mask)
             B_logits = model_output["B_logits"]  # shape: (B, V)
-            B_probs = F.softmax(B_logits, dim=-1)  # shape: (B, V)
+            B_probs = F.softmax(B_logits[:,1:], dim=-1)  # shape: (B, V)
 
         # Create bin centers to estimate B_approx
         centers = torch.arange(5, 100, 10).unsqueeze(0).to(B_probs.device)  # shape: (1, 19)
-        B_probs_trimmed = B_probs[:, 1:]  # Remove mask index (0)
+        B_probs_trimmed = B_probs  # Remove mask index (0)
         B_approx = (B_probs_trimmed * centers).sum(dim=1)  # shape: (B,)
 
         return {
