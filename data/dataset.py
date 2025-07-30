@@ -47,7 +47,9 @@ def make_gaussian_soft_labels(indices, vocab_size, std=0.5):
 class PeptideDataset(Dataset):
     def __init__(self, data_dict):
         self.sequences = data_dict['sequences']
-        self.B = data_dict['B']
+        self.B = torch.tensor(data_dict['B'])
+        self.Z = torch.tensor(data_dict['Z'], dtype=torch.long)
+        self.M = torch.tensor(data_dict['M'])
 
         self.sequence_tokenizer = PeptideTokenizer('/home/amirabbas-kazeminia/Projects/DeepRT_test/data/PEPLM_WORDS.csv')
         self.B_tokenizer = ContinuousValueTokenizer("B", 100, 10)
@@ -67,6 +69,9 @@ class PeptideDataset(Dataset):
             "B": self.B[idx],
             "B_tokens": self.B_tokens[idx],
             "B_soft": self.B_soft[idx],
+
+            "Z": self.Z[idx],
+            "M": self.M[idx],
         }
 
     def __len__(self):

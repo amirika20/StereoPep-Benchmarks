@@ -34,6 +34,8 @@ class PepDataModule(pl.LightningDataModule):
         data = {
             'sequences': df['Peptide'].tolist(),
             'B': df['B'].tolist(),
+            'Z': df['Z'].tolist(),
+            'M': [m/1000 for m in df['M'].tolist()]
         }
         self.train_set, self.val_set, self.test_set = stratified_split(data, "B", random_state=self.random_state)
 
@@ -72,12 +74,12 @@ def train(seed, d_model, n_heads, n_layers):
     trainer.save_checkpoint(f"weights/{n_layers}layers_{n_heads}heads_{d_model}dim_{seed}seed.ckpt", weights_only=True)
     return test_metrics
 
-def k_training():
+def k_training(d_model, num_heads, n_layers):
     all_metrics = []
-    seeds = [10,20]
-    d_model = 12
-    num_heads = 2
-    n_layers = 2
+    seeds = [10]
+    # d_model = 12
+    # num_heads = 2
+    # n_layers = 2
     for index in range(len(seeds)):
         torch.manual_seed(seeds[index])
         torch.cuda.manual_seed(seeds[index])
@@ -88,7 +90,6 @@ def k_training():
         all_metrics.append(test_metrics)
 
     # Build table
-    
     output_csv = f"metrics/{n_layers}layers_{num_heads}heads_{d_model}dim_metrics_summary.csv"
     df = pd.DataFrame(all_metrics)
     df.loc['mean'] = df.drop(columns='run').mean(numeric_only=True)
@@ -97,4 +98,4 @@ def k_training():
 
 
 if __name__ == "__main__":
-    k_training()
+    k_training(24,2,1)
