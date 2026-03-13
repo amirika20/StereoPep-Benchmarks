@@ -1,0 +1,66 @@
+======================================================================
+DeepRT CapsNet (Tang et al., 2020) — Retention Time Prediction
+Dataset : amirka20/peptag
+Run at  : 2026-03-13 14:59:08
+======================================================================
+
+Model configuration
+----------------------------------------
+  Architecture        : Embedding + 2×Conv2d + PrimaryCaps + DigitCaps (ensemble)
+  Kernel sizes        : [8, 10, 12]  (one model each, averaged)
+  Embedding dim       : 20
+  Conv filters        : 256
+  Primary capsules    : 8 dims × 32 capsules
+  Digit capsules      : 1 capsule × 16 dims
+  Routing iterations  : 1
+  Max sequence length : 50
+  Vocab size          : 22  (incl. 'f' D-Phe token)
+  Params per model    : 1,210,552
+  Optimizer           : Adam  lr=0.001
+  Batch size          : 64
+  Max epochs          : 50  (early stop patience=8)
+  Device              : cuda
+  Target normalisation: min=7.8818  max=91.0000  (train split)
+
+Training summary (per kernel size)
+----------------------------------------
+  kernel=8  stopped= 27  best_val=0.0042
+  kernel=10  stopped= 24  best_val=0.0044
+  kernel=12  stopped= 22  best_val=0.0045
+
+Test-split regression metrics  (ensemble)
+----------------------------------------
+  RMSE                : 6.9366
+  MAE                 : 5.0757
+  Pearson  r          : +0.7739
+  Spearman r          : +0.8025
+  Kendall  τ          : +0.6105
+
+Stereo-pair ordering (D-Phe vs L-Phe)  (ensemble)
+----------------------------------------
+  N pairs evaluated   : 542
+  Correct order       : 209
+  Ordering accuracy   : 0.3856
+  Δ Pearson  r        : -0.1126
+  Δ Spearman r        : -0.0791
+  Mean true  Δ B      : +2.3098
+  Mean pred  Δ B      : -0.0882
+
+Training loss curve  kernel=8  (every 10 epochs + last)
+----------------------------------------
+  epoch  10  train=0.0041  val=0.0045
+  epoch  20  train=0.0024  val=0.0046
+  epoch  27  train=0.0017  val=0.0047
+
+Training loss curve  kernel=10  (every 10 epochs + last)
+----------------------------------------
+  epoch  10  train=0.0040  val=0.0047
+  epoch  20  train=0.0023  val=0.0047
+  epoch  24  train=0.0018  val=0.0048
+
+Training loss curve  kernel=12  (every 10 epochs + last)
+----------------------------------------
+  epoch  10  train=0.0041  val=0.0045
+  epoch  20  train=0.0025  val=0.0046
+  epoch  22  train=0.0022  val=0.0048
+
