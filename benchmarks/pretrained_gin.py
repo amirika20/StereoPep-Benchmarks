@@ -1,0 +1,562 @@
+"""
+Pretrained GIN benchmark for the PepTag dataset.
+
+Uses the Graph Isomorphism Network (GIN) pretrained on 2M molecules from
+ZINC15 + ~450k bio-assay labels (Hu et al., ICLR 2020 — "Strategies for
+Pre-training Graph Neural Networks").
+
+Pretrained checkpoint: gin_supervised_contextpred
+  → combines context-prediction self-supervision with supervised bio-activity
+    pre-training; consistently among the best-performing variants.
+
+Pipeline:
+  1. Download pretrained GIN weights (snap-stanford, chem domain).
+  2. Convert full peptide SMILES → molecular graphs (atom/bond features
+     matching the exact featurisation used during pre-training).
+  3. Fine-tune the GNN end-to-end together with a small MLP head to predict
+     B (retention time, normalised 0-100) on the peptag train split.
+  4. Evaluate on test split with regression metrics.
+  5. Evaluate stereochemistry ordering accuracy on stereo_pairs (D-Phe vs
+     L-Phe).
+
+Results are written to benchmarks/results_pretrained_gin.txt.
+"""
+
+from __future__ import annotations
+
+import time
+import urllib.request
+from datetime import datetime
+from pathlib import Path
+
+import torch
+from tqdm import tqdm
+import torch.nn as nn
+import torch.nn.functional as F
+import numpy as np
+from datasets import load_dataset as hf_load_dataset
+from rdkit import Chem
+from scipy import stats
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+from torch_geometric.data import Data, Batch
+from torch_geometric.nn import MessagePassing, global_mean_pool
+from torch_geometric.utils import add_self_loops
+from torch.utils.data import DataLoader as PlainDataLoader
+
+# ── config ────────────────────────────────────────────────────────────────────
+HF_REPO       = "amirka20/peptag"
+
+# GIN architecture — must match the pretrained weights exactly
+NUM_ATOM_TYPES     = 120
+NUM_CHIRALITY_TAGS = 3
+NUM_BOND_TYPES     = 6
+NUM_BOND_DIRS      = 3
+GIN_LAYERS         = 5
+GIN_EMB_DIM        = 300
+
+# Pretrained checkpoint (chem/supervised_contextpred from snap-stanford)
+PRETRAINED_URL = (
+    "https://raw.githubusercontent.com/snap-stanford/pretrain-gnns"
+    "/master/chem/model_gin/supervised_contextpred.pth"
+)
+WEIGHTS_DIR   = Path(__file__).parent / "pretrained_weights"
+WEIGHTS_FILE  = WEIGHTS_DIR / "gin_supervised_contextpred.pth"
+
+# Fine-tuning
+HEAD_HIDDEN   = 256
+HEAD_LAYERS   = 2
+DROPOUT       = 0.1
+LR_BACKBONE   = 1e-4   # lower LR for pretrained GNN backbone
+LR_HEAD       = 1e-3   # higher LR for the new prediction head
+WEIGHT_DECAY  = 1e-4
+BATCH_SIZE    = 64     # smaller batches — each sample is a molecular graph
+MAX_EPOCHS    = 20
+PATIENCE      = 5
+DEVICE        = "cuda" if torch.cuda.is_available() else "cpu"
+
+RESULTS_FILE  = Path(__file__).parent / "results_pretrained_gin.txt"
+
+
+# ── pretrained weight download ────────────────────────────────────────────────
+
+def download_weights() -> None:
+    if WEIGHTS_FILE.exists():
+        print(f"  Weights already cached at {WEIGHTS_FILE}")
+        return
+    WEIGHTS_DIR.mkdir(parents=True, exist_ok=True)
+    print(f"  Downloading pretrained GIN from snap-stanford …")
+    try:
+        urllib.request.urlretrieve(PRETRAINED_URL, WEIGHTS_FILE)
+        print(f"  Saved to {WEIGHTS_FILE}")
+    except Exception as e:
+        raise RuntimeError(
+            f"Failed to download pretrained weights from {PRETRAINED_URL}.\n"
+            f"Error: {e}\n"
+            f"Download manually and place at {WEIGHTS_FILE}"
+        )
+
+
+# ── molecular graph featurisation ─────────────────────────────────────────────
+# Atom/bond feature encoding must match exactly what was used during pre-training
+# (see snap-stanford/pretrain-gnns/chem/loader.py).
+
+_BOND_TYPE_MAP = {
+    Chem.rdchem.BondType.SINGLE:   0,
+    Chem.rdchem.BondType.DOUBLE:   1,
+    Chem.rdchem.BondType.TRIPLE:   2,
+    Chem.rdchem.BondType.AROMATIC: 3,
+}
+_BOND_DIR_MAP = {
+    Chem.rdchem.BondDir.NONE:        0,
+    Chem.rdchem.BondDir.ENDUPRIGHT:  1,
+    Chem.rdchem.BondDir.ENDDOWNRIGHT: 2,
+}
+_CHIRALITY_MAP = {
+    Chem.rdchem.ChiralType.CHI_UNSPECIFIED:    0,
+    Chem.rdchem.ChiralType.CHI_TETRAHEDRAL_CW: 1,
+    Chem.rdchem.ChiralType.CHI_TETRAHEDRAL_CCW: 2,
+    Chem.rdchem.ChiralType.CHI_OTHER:          2,  # rare; map to 2 (stay in-bounds)
+}
+
+
+def smiles_to_graph(smiles: str) -> Data | None:
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None or mol.GetNumAtoms() == 0:
+        return None
+
+    # Node features: [atomic_num_idx, chirality_idx]
+    atom_feats = []
+    for atom in mol.GetAtoms():
+        atomic_num_idx = min(atom.GetAtomicNum() - 1, 117)  # 0-indexed, capped
+        chirality_idx  = _CHIRALITY_MAP.get(atom.GetChiralTag(), 0)
+        atom_feats.append([atomic_num_idx, chirality_idx])
+
+    # Edge features: bidirectional, [bond_type_idx, bond_dir_idx]
+    src, dst, edge_feats = [], [], []
+    for bond in mol.GetBonds():
+        i, j = bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()
+        bt  = _BOND_TYPE_MAP.get(bond.GetBondType(), 3)
+        bd  = _BOND_DIR_MAP.get(bond.GetBondDir(), 0)
+        src += [i, j];  dst += [j, i]
+        edge_feats += [[bt, bd], [bt, bd]]
+
+    x          = torch.tensor(atom_feats,  dtype=torch.long)
+    edge_index = torch.tensor([src, dst],  dtype=torch.long)
+    edge_attr  = torch.tensor(edge_feats,  dtype=torch.long)
+
+    # Handle molecules with no bonds (shouldn't happen for peptides)
+    if edge_index.numel() == 0:
+        edge_index = torch.zeros((2, 0), dtype=torch.long)
+        edge_attr  = torch.zeros((0, 2), dtype=torch.long)
+
+    return Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
+
+
+# ── GIN model (architecture must match snap-stanford pretrained weights) ──────
+
+class GINConv(MessagePassing):
+    """GIN layer with edge-feature integration (Hu et al. 2020)."""
+
+    def __init__(self, emb_dim: int):
+        super().__init__(aggr="add")
+        self.mlp = nn.Sequential(
+            nn.Linear(emb_dim, 2 * emb_dim),
+            nn.ReLU(),
+            nn.Linear(2 * emb_dim, emb_dim),
+        )
+        self.edge_embedding1 = nn.Embedding(NUM_BOND_TYPES, emb_dim)
+        self.edge_embedding2 = nn.Embedding(NUM_BOND_DIRS,  emb_dim)
+        nn.init.xavier_uniform_(self.edge_embedding1.weight)
+        nn.init.xavier_uniform_(self.edge_embedding2.weight)
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        edge_index: torch.Tensor,
+        edge_attr: torch.Tensor,
+    ) -> torch.Tensor:
+        # Add self-loops and corresponding "self-loop" edge features
+        edge_index, _ = add_self_loops(edge_index, num_nodes=x.size(0))
+        self_loop_attr = torch.zeros(x.size(0), 2, dtype=torch.long, device=x.device)
+        self_loop_attr[:, 0] = 4  # bond type index reserved for self-loops
+        edge_attr = torch.cat([edge_attr, self_loop_attr], dim=0)
+
+        edge_emb = self.edge_embedding1(edge_attr[:, 0]) + \
+                   self.edge_embedding2(edge_attr[:, 1])
+        return self.propagate(edge_index, x=x, edge_attr=edge_emb)
+
+    def message(self, x_j: torch.Tensor, edge_attr: torch.Tensor) -> torch.Tensor:
+        return x_j + edge_attr
+
+    def update(self, aggr_out: torch.Tensor) -> torch.Tensor:
+        return self.mlp(aggr_out)
+
+
+class GINEncoder(nn.Module):
+    """5-layer GIN encoder; produces node-level embeddings."""
+
+    def __init__(
+        self,
+        num_layers: int = GIN_LAYERS,
+        emb_dim: int = GIN_EMB_DIM,
+        drop_ratio: float = 0.0,
+    ):
+        super().__init__()
+        self.x_embedding1  = nn.Embedding(NUM_ATOM_TYPES,     emb_dim)
+        self.x_embedding2  = nn.Embedding(NUM_CHIRALITY_TAGS, emb_dim)
+        nn.init.xavier_uniform_(self.x_embedding1.weight)
+        nn.init.xavier_uniform_(self.x_embedding2.weight)
+
+        self.gnns        = nn.ModuleList([GINConv(emb_dim) for _ in range(num_layers)])
+        self.batch_norms = nn.ModuleList([nn.BatchNorm1d(emb_dim) for _ in range(num_layers)])
+        self.num_layers  = num_layers
+        self.drop_ratio  = drop_ratio
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        edge_index: torch.Tensor,
+        edge_attr: torch.Tensor,
+    ) -> torch.Tensor:
+        h = self.x_embedding1(x[:, 0]) + self.x_embedding2(x[:, 1])
+        for i, (gnn, bn) in enumerate(zip(self.gnns, self.batch_norms)):
+            h = gnn(h, edge_index, edge_attr)
+            h = bn(h)
+            if i < self.num_layers - 1:
+                h = F.relu(h)
+            h = F.dropout(h, p=self.drop_ratio, training=self.training)
+        return h
+
+
+class GINPredictor(nn.Module):
+    """GIN encoder + global mean pooling + MLP head."""
+
+    def __init__(
+        self,
+        head_hidden: int = HEAD_HIDDEN,
+        head_layers: int = HEAD_LAYERS,
+        dropout: float = DROPOUT,
+    ):
+        super().__init__()
+        self.encoder = GINEncoder(drop_ratio=dropout)
+
+        layers: list[nn.Module] = []
+        in_dim = GIN_EMB_DIM
+        for _ in range(head_layers):
+            layers += [nn.Linear(in_dim, head_hidden), nn.LayerNorm(head_hidden),
+                       nn.GELU(), nn.Dropout(dropout)]
+            in_dim = head_hidden
+        layers.append(nn.Linear(in_dim, 1))
+        self.head = nn.Sequential(*layers)
+
+    def forward(self, data: Batch) -> torch.Tensor:
+        node_emb  = self.encoder(data.x, data.edge_index, data.edge_attr)
+        graph_emb = global_mean_pool(node_emb, data.batch)
+        return self.head(graph_emb).squeeze(-1)
+
+    def load_pretrained_encoder(self, path: Path) -> None:
+        state = torch.load(path, map_location="cpu", weights_only=False)
+        missing, unexpected = self.encoder.load_state_dict(state, strict=True)
+        if missing:
+            print(f"  WARNING — missing keys: {missing}")
+        if unexpected:
+            print(f"  WARNING — unexpected keys: {unexpected}")
+
+
+# ── dataset helpers ───────────────────────────────────────────────────────────
+
+class GraphDataset(torch.utils.data.Dataset):
+    def __init__(self, graphs: list[Data], targets: np.ndarray):
+        self.graphs  = graphs
+        self.targets = targets
+
+    def __len__(self) -> int:
+        return len(self.graphs)
+
+    def __getitem__(self, idx):
+        g = self.graphs[idx].clone()
+        g.y = torch.tensor(self.targets[idx], dtype=torch.float)
+        return g
+
+
+def collate_fn(batch: list[Data]) -> Batch:
+    return Batch.from_data_list(batch)
+
+
+def encode_smiles(smiles_list: list[str], desc: str = "Encoding") -> tuple[list[Data], list[int]]:
+    """Convert SMILES → graphs; return (graphs, bad_indices)."""
+    graphs, bad = [], []
+    for i, smi in enumerate(tqdm(smiles_list, desc=desc, leave=False)):
+        g = smiles_to_graph(smi)
+        if g is None:
+            bad.append(i)
+            # placeholder — will be masked out
+            graphs.append(Data(
+                x=torch.zeros((1, 2), dtype=torch.long),
+                edge_index=torch.zeros((2, 0), dtype=torch.long),
+                edge_attr=torch.zeros((0, 2),  dtype=torch.long),
+            ))
+        else:
+            graphs.append(g)
+    return graphs, bad
+
+
+# ── training ──────────────────────────────────────────────────────────────────
+
+def train(
+    model: GINPredictor,
+    train_loader: PlainDataLoader,
+    val_loader: PlainDataLoader,
+) -> list[dict]:
+    # Separate optimiser groups for backbone (lower LR) and head
+    backbone_params = list(model.encoder.parameters())
+    head_params     = list(model.head.parameters())
+    opt = torch.optim.AdamW([
+        {"params": backbone_params, "lr": LR_BACKBONE},
+        {"params": head_params,     "lr": LR_HEAD},
+    ], weight_decay=WEIGHT_DECAY)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        opt, patience=4, factor=0.5, min_lr=1e-6
+    )
+    criterion = nn.MSELoss()
+    history = []
+    best_val_loss = float("inf")
+    best_state = None
+    no_improve = 0
+
+    epoch_bar = tqdm(range(1, MAX_EPOCHS + 1), desc="Training", unit="epoch")
+    for epoch in epoch_bar:
+        model.train()
+        train_loss = 0.0
+        for batch in tqdm(train_loader, desc=f"  epoch {epoch:3d} train", leave=False):
+            batch = batch.to(DEVICE)
+            opt.zero_grad()
+            pred = model(batch)
+            loss = criterion(pred, batch.y)
+            loss.backward()
+            opt.step()
+            train_loss += loss.item() * batch.num_graphs
+        train_loss /= len(train_loader.dataset)
+
+        model.eval()
+        val_loss = 0.0
+        with torch.no_grad():
+            for batch in tqdm(val_loader, desc=f"  epoch {epoch:3d} val  ", leave=False):
+                batch = batch.to(DEVICE)
+                val_loss += criterion(model(batch), batch.y).item() * batch.num_graphs
+        val_loss /= len(val_loader.dataset)
+
+        scheduler.step(val_loss)
+        history.append({"epoch": epoch, "train_loss": train_loss, "val_loss": val_loss})
+
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
+            no_improve = 0
+        else:
+            no_improve += 1
+
+        epoch_bar.set_postfix(train=f"{train_loss:.4f}", val=f"{val_loss:.4f}",
+                              best=f"{best_val_loss:.4f}", patience=no_improve)
+
+        if no_improve >= PATIENCE:
+            print(f"\n  Early stop at epoch {epoch} (no val improvement for {PATIENCE} epochs)")
+            break
+
+    if best_state is not None:
+        model.load_state_dict(best_state)
+    return history
+
+
+def predict(model: GINPredictor, graphs: list[Data]) -> np.ndarray:
+    model.eval()
+    preds = []
+    with torch.no_grad():
+        for i in range(0, len(graphs), BATCH_SIZE):
+            batch = Batch.from_data_list(graphs[i : i + BATCH_SIZE]).to(DEVICE)
+            preds.append(model(batch).cpu().numpy())
+    return np.concatenate(preds)
+
+
+# ── metrics ───────────────────────────────────────────────────────────────────
+
+def regression_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
+    return {
+        "rmse":     float(np.sqrt(mean_squared_error(y_true, y_pred))),
+        "mae":      float(mean_absolute_error(y_true, y_pred)),
+        "pearson":  stats.pearsonr(y_true, y_pred)[0],
+        "spearman": stats.spearmanr(y_true, y_pred)[0],
+        "kendall":  stats.kendalltau(y_true, y_pred)[0],
+    }
+
+
+def stereo_ordering_accuracy(model: GINPredictor, stereo_ds) -> dict:
+    graphs_f, bad_f = encode_smiles(stereo_ds["SMILES_f"], desc="Stereo D-Phe")
+    graphs_F, bad_F = encode_smiles(stereo_ds["SMILES_F"], desc="Stereo L-Phe")
+    B_f     = np.array(stereo_ds["B_f"],    dtype=np.float64)
+    B_F     = np.array(stereo_ds["B_F"],    dtype=np.float64)
+    delta_B = np.array(stereo_ds["delta_B"], dtype=np.float64)
+
+    pred_f = predict(model, graphs_f)
+    pred_F = predict(model, graphs_F)
+    pred_delta = pred_f - pred_F
+
+    bad = set(bad_f) | set(bad_F)
+    mask = np.ones(len(delta_B), dtype=bool)
+    for i in bad:
+        mask[i] = False
+
+    true_sign = np.sign(delta_B[mask])
+    pred_sign = np.sign(pred_delta[mask])
+    correct   = int((true_sign == pred_sign).sum())
+    total     = int(mask.sum())
+
+    pr = stats.pearsonr(delta_B[mask], pred_delta[mask])[0]
+    sr = stats.spearmanr(delta_B[mask], pred_delta[mask])[0]
+
+    return {
+        "n_pairs":         total,
+        "n_correct":       correct,
+        "ordering_acc":    correct / total if total > 0 else float("nan"),
+        "delta_pearson":   float(pr),
+        "delta_spearman":  float(sr),
+        "mean_true_delta": float(delta_B[mask].mean()),
+        "mean_pred_delta": float(pred_delta[mask].mean()),
+    }
+
+
+# ── reporting ─────────────────────────────────────────────────────────────────
+
+def write_results(
+    test_metrics: dict,
+    stereo_metrics: dict,
+    history: list[dict],
+    output_file: Path,
+) -> None:
+    last = history[-1]
+    best_val = min(h["val_loss"] for h in history)
+
+    lines = [
+        "=" * 70,
+        "Pretrained GIN — Retention Time Prediction",
+        f"Dataset    : {HF_REPO}",
+        f"Checkpoint : gin_supervised_contextpred (snap-stanford, Hu et al. 2020)",
+        f"Run at     : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        "=" * 70,
+        "",
+        "Model configuration",
+        "-" * 40,
+        f"  GIN layers          : {GIN_LAYERS}",
+        f"  GIN emb dim         : {GIN_EMB_DIM}",
+        f"  Head hidden dim     : {HEAD_HIDDEN}",
+        f"  Head layers         : {HEAD_LAYERS}",
+        f"  Dropout             : {DROPOUT}",
+        f"  Optimiser           : AdamW  lr_backbone={LR_BACKBONE}  lr_head={LR_HEAD}",
+        f"  Weight decay        : {WEIGHT_DECAY}",
+        f"  Batch size          : {BATCH_SIZE}",
+        f"  Max epochs          : {MAX_EPOCHS}  (early stop patience={PATIENCE})",
+        f"  Device              : {DEVICE}",
+        "",
+        "Training summary",
+        "-" * 40,
+        f"  Stopped at epoch    : {last['epoch']}",
+        f"  Best val MSE loss   : {best_val:.4f}",
+        "",
+        "Test-split regression metrics",
+        "-" * 40,
+        f"  RMSE                : {test_metrics['rmse']:.4f}",
+        f"  MAE                 : {test_metrics['mae']:.4f}",
+        f"  Pearson  r          : {test_metrics['pearson']:+.4f}",
+        f"  Spearman r          : {test_metrics['spearman']:+.4f}",
+        f"  Kendall  τ          : {test_metrics['kendall']:+.4f}",
+        "",
+        "Stereo-pair ordering (D-Phe vs L-Phe)",
+        "-" * 40,
+        f"  N pairs evaluated   : {stereo_metrics['n_pairs']}",
+        f"  Correct order       : {stereo_metrics['n_correct']}",
+        f"  Ordering accuracy   : {stereo_metrics['ordering_acc']:.4f}",
+        f"  Δ Pearson  r        : {stereo_metrics['delta_pearson']:+.4f}",
+        f"  Δ Spearman r        : {stereo_metrics['delta_spearman']:+.4f}",
+        f"  Mean true  Δ B      : {stereo_metrics['mean_true_delta']:+.4f}",
+        f"  Mean pred  Δ B      : {stereo_metrics['mean_pred_delta']:+.4f}",
+        "",
+        "Training loss curve (every 10 epochs + last)",
+        "-" * 40,
+    ]
+    reported = {h["epoch"] for h in history if h["epoch"] % 10 == 0}
+    reported.add(history[-1]["epoch"])
+    for h in history:
+        if h["epoch"] in reported:
+            lines.append(
+                f"  epoch {h['epoch']:3d}  train={h['train_loss']:.4f}  val={h['val_loss']:.4f}"
+            )
+
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    output_file.write_text("\n".join(lines) + "\n")
+    print(f"\nResults written to {output_file}")
+
+
+# ── main ──────────────────────────────────────────────────────────────────────
+
+def main() -> None:
+    print(f"Device: {DEVICE}")
+
+    # Download pretrained weights
+    print("Checking pretrained GIN weights …")
+    download_weights()
+
+    # Load dataset
+    print("Loading peptag dataset …")
+    ds = hf_load_dataset(HF_REPO, "peptag")
+    sp = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
+
+    # Build molecular graphs
+    graphs_train, _ = encode_smiles(ds["train"]["SMILES"], desc="Graphs train")
+    graphs_val,   _ = encode_smiles(ds["val"]["SMILES"],   desc="Graphs val  ")
+    graphs_test,  _ = encode_smiles(ds["test"]["SMILES"],  desc="Graphs test ")
+
+    y_train = np.array(ds["train"]["B"], dtype=np.float32)
+    y_val   = np.array(ds["val"]["B"],   dtype=np.float32)
+    y_test  = np.array(ds["test"]["B"],  dtype=np.float32)
+    print(f"  train={len(y_train)}  val={len(y_val)}  test={len(y_test)}")
+
+    train_loader = PlainDataLoader(
+        GraphDataset(graphs_train, y_train), batch_size=BATCH_SIZE,
+        shuffle=True,  collate_fn=collate_fn, num_workers=0,
+    )
+    val_loader = PlainDataLoader(
+        GraphDataset(graphs_val, y_val), batch_size=BATCH_SIZE,
+        shuffle=False, collate_fn=collate_fn, num_workers=0,
+    )
+
+    # Build model and load pretrained encoder
+    model = GINPredictor().to(DEVICE)
+    print("Loading pretrained GIN encoder …")
+    model.load_pretrained_encoder(WEIGHTS_FILE)
+    n_params = sum(p.numel() for p in model.parameters())
+    print(f"  Total parameters: {n_params:,}")
+
+    # Fine-tune
+    print("Fine-tuning …")
+    t0 = time.time()
+    history = train(model, train_loader, val_loader)
+    print(f"Training done in {time.time() - t0:.1f}s")
+
+    # Test metrics
+    print("Evaluating on test split …")
+    y_pred_test = predict(model, graphs_test)
+    test_metrics = regression_metrics(y_test, y_pred_test)
+    print(f"  RMSE={test_metrics['rmse']:.4f}  Pearson={test_metrics['pearson']:+.4f}"
+          f"  Spearman={test_metrics['spearman']:+.4f}")
+
+    # Stereo ordering
+    print("Evaluating stereo-pair ordering …")
+    stereo_metrics = stereo_ordering_accuracy(model, sp)
+    print(f"  Ordering accuracy: {stereo_metrics['ordering_acc']:.4f}"
+          f"  ({stereo_metrics['n_correct']}/{stereo_metrics['n_pairs']})")
+
+    write_results(test_metrics, stereo_metrics, history, RESULTS_FILE)
+
+
+if __name__ == "__main__":
+    main()

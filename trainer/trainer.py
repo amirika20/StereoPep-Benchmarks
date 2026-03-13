@@ -23,21 +23,13 @@ from pytorch_lightning.callbacks import RichProgressBar, EarlyStopping
 
 
 class PepDataModule(pl.LightningDataModule):
-    def __init__(self, batch_size=64, random_state=42):
+    def __init__(self, batch_size=64):
         super().__init__()
         self.batch_size = batch_size
-        self.random_state = random_state
-        
+
 
     def setup(self, stage=None):
-        df = pd.read_csv("/home/amirabbas-kazeminia/Projects/DeepRT/data/ML_DATA.csv")
-        data = {
-            'sequences': df['Peptide'].tolist(),
-            'B': df['B'].tolist(),
-            'Z': df['Z'].tolist(),
-            'M': [m/1000 for m in df['M'].tolist()]
-        }
-        self.train_set, self.val_set, self.test_set = stratified_split(data, "B", random_state=self.random_state)
+        self.train_set, self.val_set, self.test_set = load_peptag()
 
     def train_dataloader(self):
         return DataLoader(self.train_set, batch_size=self.batch_size, shuffle=True)
@@ -50,8 +42,10 @@ class PepDataModule(pl.LightningDataModule):
 
 
 def train(seed, d_model, n_heads, n_layers):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
     model = DeepRT(d_model=d_model, n_heads=n_heads, n_layers=n_layers)
-    datamodule = PepDataModule(128, random_state=seed)
+    datamodule = PepDataModule(128)
     logger = TensorBoardLogger("tb_logs", name="testing")
 
     early_stop_callback = EarlyStopping(
@@ -66,7 +60,7 @@ def train(seed, d_model, n_heads, n_layers):
         callbacks=[early_stop_callback, RichProgressBar()],
         enable_progress_bar=True,
         enable_model_summary=True,
-        logger=logger,  # e.g., TensorBoardLogger or WandbLogger
+        logger=logger,
         num_sanity_val_steps=0,
         )
     trainer.fit(model, datamodule=datamodule)
@@ -77,16 +71,10 @@ def train(seed, d_model, n_heads, n_layers):
 def k_training(d_model, num_heads, n_layers):
     all_metrics = []
     seeds = [10]
-    # d_model = 12
-    # num_heads = 2
-    # n_layers = 2
     for index in range(len(seeds)):
-        torch.manual_seed(seeds[index])
-        torch.cuda.manual_seed(seeds[index])
-        torch.cuda.manual_seed_all(seeds[index])
-        print(f"\n🔁 Run {index + 1}/{len(seeds)} (random_state = {seeds[index]})")
+        print(f"\n🔁 Run {index + 1}/{len(seeds)} (seed = {seeds[index]})")
         test_metrics = train(seeds[index], d_model, num_heads, n_layers)
-        test_metrics['run'] = index +1
+        test_metrics['run'] = index + 1
         all_metrics.append(test_metrics)
 
     # Build table
