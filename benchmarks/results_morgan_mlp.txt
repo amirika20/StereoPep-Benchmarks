@@ -1,0 +1,50 @@
+======================================================================
+Morgan Fingerprint MLP — Retention Time Prediction
+Dataset : amirka20/peptag
+Run at  : 2026-03-12 20:52:33
+======================================================================
+
+Model configuration
+----------------------------------------
+  Fingerprint radius  : 2
+  Fingerprint bits    : 2048
+  Chirality-aware     : True
+  Hidden dim          : 512
+  Hidden layers       : 3
+  Dropout             : 0.1
+  Optimizer           : AdamW  lr=0.001  wd=0.0001
+  Batch size          : 256
+  Max epochs          : 100  (early stop patience=10)
+  Device              : cuda
+
+Training summary
+----------------------------------------
+  Stopped at epoch    : 55
+  Best val MSE loss   : 44.9722
+
+Test-split regression metrics
+----------------------------------------
+  RMSE                : 8.8950
+  MAE                 : 6.5921
+  Pearson  r          : +0.5493
+  Spearman r          : +0.5833
+  Kendall  τ          : +0.4130
+
+Stereo-pair ordering (D-Phe vs L-Phe)
+----------------------------------------
+  N pairs evaluated   : 542
+  Correct order       : 363
+  Ordering accuracy   : 0.6697
+  Δ Pearson  r        : -0.0089
+  Δ Spearman r        : +0.0148
+  Mean true  Δ B      : +2.3098
+  Mean pred  Δ B      : +1.6055
+
+Training loss curve (every 10 epochs + last)
+----------------------------------------
+  epoch  10  train=52.3740  val=48.1705
+  epoch  20  train=50.1367  val=46.8129
+  epoch  30  train=49.1901  val=45.2118
+  epoch  40  train=47.6052  val=45.4865
+  epoch  50  train=47.1177  val=45.2008
+  epoch  55  train=46.1700  val=45.5396

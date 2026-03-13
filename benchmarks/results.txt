@@ -1,0 +1,91 @@
+======================================================================
+Biophysical Feature × Retention Time Correlations
+Dataset : amirka20/peptag  |  Split : train  |  N = 41455
+Run at  : 2026-03-12 20:42:51
+======================================================================
+
+Feature                 Pearson r   Spearman r   Kendall τ
+------------------------------------------------------------
+gravy                     +0.4876      +0.5129     +0.3563
+mw                        +0.4017      +0.4857     +0.3335
+hydrophobic_frac          +0.3550      +0.4084     +0.2842
+length                    +0.3349      +0.4015     +0.2876
+charge_pH2                -0.2822      -0.3799     -0.2638
+mean_logp                 +0.3575      +0.3772     +0.2572
+mean_hbd                  -0.3374      -0.3585     -0.2478
+pI                        -0.2552      -0.3356     -0.2316
+charge_pH7                -0.1844      -0.3310     -0.2267
+mean_hba                  -0.2673      -0.2538     -0.1792
+mean_rot_bonds            +0.2004      +0.2330     +0.1570
+mean_tpsa                 -0.2162      -0.2138     -0.1459
+charged_frac              -0.2223      -0.2118     -0.1458
+aromatic_frac             +0.1494      +0.1427     +0.0986
+proline_frac              -0.1469      -0.1190     -0.0905
+mean_rings                -0.1023      -0.1096     -0.0697
+
+Detailed p-values
+------------------------------------------------------------
+  gravy
+    pearson     r=+0.4876  p=0.000e+00
+    spearman    r=+0.5129  p=0.000e+00
+    kendall     r=+0.3563  p=0.000e+00
+  mw
+    pearson     r=+0.4017  p=0.000e+00
+    spearman    r=+0.4857  p=0.000e+00
+    kendall     r=+0.3335  p=0.000e+00
+  hydrophobic_frac
+    pearson     r=+0.3550  p=0.000e+00
+    spearman    r=+0.4084  p=0.000e+00
+    kendall     r=+0.2842  p=0.000e+00
+  length
+    pearson     r=+0.3349  p=0.000e+00
+    spearman    r=+0.4015  p=0.000e+00
+    kendall     r=+0.2876  p=0.000e+00
+  charge_pH2
+    pearson     r=-0.2822  p=0.000e+00
+    spearman    r=-0.3799  p=0.000e+00
+    kendall     r=-0.2638  p=0.000e+00
+  mean_logp
+    pearson     r=+0.3575  p=0.000e+00
+    spearman    r=+0.3772  p=0.000e+00
+    kendall     r=+0.2572  p=0.000e+00
+  mean_hbd
+    pearson     r=-0.3374  p=0.000e+00
+    spearman    r=-0.3585  p=0.000e+00
+    kendall     r=-0.2478  p=0.000e+00
+  pI
+    pearson     r=-0.2552  p=0.000e+00
+    spearman    r=-0.3356  p=0.000e+00
+    kendall     r=-0.2316  p=0.000e+00
+  charge_pH7
+    pearson     r=-0.1844  p=8.735e-314
+    spearman    r=-0.3310  p=0.000e+00
+    kendall     r=-0.2267  p=0.000e+00
+  mean_hba
+    pearson     r=-0.2673  p=0.000e+00
+    spearman    r=-0.2538  p=0.000e+00
+    kendall     r=-0.1792  p=0.000e+00
+  mean_rot_bonds
+    pearson     r=+0.2004  p=0.000e+00
+    spearman    r=+0.2330  p=0.000e+00
+    kendall     r=+0.1570  p=0.000e+00
+  mean_tpsa
+    pearson     r=-0.2162  p=0.000e+00
+    spearman    r=-0.2138  p=0.000e+00
+    kendall     r=-0.1459  p=0.000e+00
+  charged_frac
+    pearson     r=-0.2223  p=0.000e+00
+    spearman    r=-0.2118  p=0.000e+00
+    kendall     r=-0.1458  p=0.000e+00
+  aromatic_frac
+    pearson     r=+0.1494  p=1.933e-205
+    spearman    r=+0.1427  p=1.726e-187
+    kendall     r=+0.0986  p=1.726e-191
+  proline_frac
+    pearson     r=-0.1469  p=1.099e-198
+    spearman    r=-0.1190  p=1.591e-130
+    kendall     r=-0.0905  p=1.741e-132
+  mean_rings
+    pearson     r=-0.1023  p=7.203e-97
+    spearman    r=-0.1096  p=5.078e-111
+    kendall     r=-0.0697  p=1.642e-97
