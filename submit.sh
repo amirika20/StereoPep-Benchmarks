@@ -6,7 +6,7 @@
 #   ./submit.sh [OPTIONS] -- SCRIPT [ARGS...]
 #
 # Options:
-#   -c, --cluster CLUSTER    Cluster preset: kempner, o2, fas (default: kempner)
+#   -c, --cluster CLUSTER    Cluster preset: kempner, fas (default: kempner)
 #   -s, --seeds SEEDS        Seed list, e.g. "1 2 3 4 5" or "0-9" (default: single run, no array)
 #   -t, --time TIME          Wall time, e.g. "24:00:00" (default: per-cluster)
 #   -g, --gpus GPUS          Number of GPUs (default: 1)
@@ -24,11 +24,6 @@
 #   ./submit.sh -s "1-10" -- scripts/main.py --config-name=config_mnist \
 #       distributions@source=gaussian_mnist distributions@target=mnist \
 #       architecture.n_source_classes=0
-#
-#   # Single CIFAR run on O2 with 2 GPUs
-#   ./submit.sh -c o2 -g 2 -- scripts/main.py --config-name=config_cifar \
-#       distributions@source=gaussian_cifar distributions@target=cifar \
-#       architecture=cifar training=cifar
 #
 #   # Dry run to inspect the generated sbatch script
 #   ./submit.sh -d -s "1-5" -- scripts/main_gmm.py
@@ -87,17 +82,7 @@ case "$CLUSTER" in
         ACCOUNT="kempner_mzitnik_lab"
         MODULE_CMDS="module load python
 module load cuda/12.9.1-fasrc01"
-        ;;
-    o2)
-        PARTITION="${PARTITION:-gpu}"
-        TIME="${TIME:-0-12:00}"
-        MEM="${MEM:-32G}"
-        GPUS="${GPUS:-2}"
-        GRES="gpu:${GPUS}"
-        ACCOUNT=""
-        MODULE_CMDS="module load gcc/14.2.0
-module load python/3.13.1
-module load cuda/12.8"
+        NGSFM_CONDA_ENV="${NGSFM_CONDA_ENV:-/n/home04/akazeminia/.conda/envs/deeprt}"
         ;;
     fas)
         PARTITION="${PARTITION:-mit_normal_gpu}"
@@ -110,7 +95,7 @@ module load cuda/12.8"
 module load miniforge/25.11.0-0"
         ;;
     *)
-        echo "Unknown cluster: $CLUSTER (choose: kempner, o2, fas)" >&2
+        echo "Unknown cluster: $CLUSTER (choose: kempner, fas)" >&2
         exit 1
         ;;
 esac
