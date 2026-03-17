@@ -17,11 +17,13 @@ Architecture
 
 Self-contained: no imports from other project modules.
 
-Results are written to benchmarks/results_transformer_scratch.txt.
+Results are written to benchmarks/results_transformer_scratch_seed{N}.json.
 """
 
 from __future__ import annotations
 
+import argparse
+import json
 import time
 from datetime import datetime
 from pathlib import Path
@@ -49,10 +51,10 @@ LR           = 1e-3
 WEIGHT_DECAY = 1e-4
 BATCH_SIZE   = 256
 MAX_EPOCHS   = 50
-PATIENCE     = 8
+PATIENCE     = 8          # overridden at runtime to 0.1 * MAX_EPOCHS
 DEVICE       = "cuda" if torch.cuda.is_available() else "cpu"
 
-RESULTS_FILE = Path(__file__).parent / "results_transformer_scratch.txt"
+RESULTS_DIR  = Path(__file__).parent
 
 
 # ── tokenizer ─────────────────────────────────────────────────────────────────
@@ -210,108 +212,52 @@ def stereo_ordering_accuracy(model: PeptideTransformer, stereo_ds) -> dict:
 
 # ── reporting ─────────────────────────────────────────────────────────────────
 
-def write_results(
-    test_metrics:   dict,
+class _NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer): return int(obj)
+        if isinstance(obj, np.floating): return float(obj)
+        if isinstance(obj, np.ndarray): return obj.tolist()
+        return super().default(obj)
+
+
+def save_results(
+    seed: int,
+    test_metrics: dict,
     stereo_metrics: dict,
-    history:        list[dict],
-    n_params:       int,
+    training: dict,
+    config: dict,
+    output_dir: Path,
+    stem: str,
 ) -> None:
-    last     = history[-1]
-    best_val = min(h["val_loss"] for h in history)
-
-    lines = [
-        "=" * 70,
-        "Transformer (from scratch) — Retention Time Prediction",
-        f"Dataset : {HF_REPO}",
-        f"Run at  : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        "=" * 70,
-        "",
-        "Model configuration",
-        "-" * 40,
-        f"  Architecture        : Transformer encoder + AttentionPooling",
-        f"  d_model             : {D_MODEL}",
-        f"  n_heads             : {N_HEADS}",
-        f"  n_layers            : {N_LAYERS}",
-        f"  ffn_mult            : {FFN_MULT}  (hidden = {D_MODEL * FFN_MULT})",
-        f"  max_seq_len         : {MAX_SEQ_LEN}",
-        f"  Vocab size          : {VOCAB_SIZE}  (incl. 'f' D-Phe token)",
-        f"  Trainable params    : {n_params:,}",
-        f"  Dropout             : {DROPOUT}",
-        f"  Optimizer           : AdamW  lr={LR}  wd={WEIGHT_DECAY}",
-        f"  Batch size          : {BATCH_SIZE}",
-        f"  Max epochs          : {MAX_EPOCHS}  (early stop patience={PATIENCE})",
-        f"  Device              : {DEVICE}",
-        "",
-        "Training summary",
-        "-" * 40,
-        f"  Stopped at epoch    : {last['epoch']}",
-        f"  Best val MSE loss   : {best_val:.4f}",
-        "",
-        "Test-split regression metrics",
-        "-" * 40,
-        f"  RMSE                : {test_metrics['rmse']:.4f}",
-        f"  MAE                 : {test_metrics['mae']:.4f}",
-        f"  Pearson  r          : {test_metrics['pearson']:+.4f}",
-        f"  Spearman r          : {test_metrics['spearman']:+.4f}",
-        f"  Kendall  τ          : {test_metrics['kendall']:+.4f}",
-        "",
-        "Stereo-pair ordering (D-Phe vs L-Phe)",
-        "-" * 40,
-        f"  N pairs evaluated   : {stereo_metrics['n_pairs']}",
-        f"  Correct order       : {stereo_metrics['n_correct']}",
-        f"  Ordering accuracy   : {stereo_metrics['ordering_acc']:.4f}",
-        f"  Δ Pearson  r        : {stereo_metrics['delta_pearson']:+.4f}",
-        f"  Δ Spearman r        : {stereo_metrics['delta_spearman']:+.4f}",
-        f"  Mean true  Δ B      : {stereo_metrics['mean_true_delta']:+.4f}",
-        f"  Mean pred  Δ B      : {stereo_metrics['mean_pred_delta']:+.4f}",
-        "",
-        "Training loss curve (every 10 epochs + last)",
-        "-" * 40,
-    ]
-
-    reported = {h["epoch"] for h in history if h["epoch"] % 10 == 0}
-    reported.add(history[-1]["epoch"])
-    for h in history:
-        if h["epoch"] in reported:
-            lines.append(
-                f"  epoch {h['epoch']:3d}  train={h['train_loss']:.4f}  val={h['val_loss']:.4f}"
-            )
-
-    RESULTS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    RESULTS_FILE.write_text("\n".join(lines) + "\n")
-    print(f"\nResults written to {RESULTS_FILE}")
+    result = {
+        "benchmark": stem,
+        "seed": seed,
+        "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        "config": config,
+        "training": training,
+        "test_metrics": test_metrics,
+        "stereo_metrics": stereo_metrics,
+    }
+    out = output_dir / f"{stem}_seed{seed}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(result, indent=2, cls=_NpEncoder))
+    print(f"\nResults saved to {out}")
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
 
-def main() -> None:
-    t0 = time.time()
+def run_one_seed(
+    seed: int,
+    train_loader: DataLoader,
+    val_loader: DataLoader,
+    test_seqs: list[str],
+    y_test: np.ndarray,
+    stereo,
+) -> tuple[dict, dict, list[dict]]:
+    torch.manual_seed(seed)
+    np.random.seed(seed)
 
-    print("[data] Loading peptag dataset …")
-    ds     = hf_load_dataset(HF_REPO, "peptag")
-    stereo = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
-
-    print("[tokenize] Building token tensors …")
-    train_tok, train_mask = tokenize_batch(ds["train"]["Peptide"])
-    val_tok,   val_mask   = tokenize_batch(ds["val"]["Peptide"])
-    test_tok,  test_mask  = tokenize_batch(ds["test"]["Peptide"])
-
-    y_train = torch.tensor(ds["train"]["B"], dtype=torch.float32)
-    y_val   = torch.tensor(ds["val"]["B"],   dtype=torch.float32)
-
-    train_loader = DataLoader(
-        TensorDataset(train_tok, train_mask, y_train),
-        batch_size=BATCH_SIZE, shuffle=True,
-    )
-    val_loader = DataLoader(
-        TensorDataset(val_tok, val_mask, y_val),
-        batch_size=BATCH_SIZE,
-    )
-
-    model    = PeptideTransformer().to(DEVICE)
-    n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"\n[model] PeptideTransformer | {n_params:,} params | device={DEVICE}")
-
+    model     = PeptideTransformer().to(DEVICE)
     optimizer = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, patience=3, factor=0.5, min_lr=1e-5
@@ -323,11 +269,11 @@ def main() -> None:
     no_improve    = 0
     history: list[dict] = []
 
-    epoch_bar = tqdm(range(1, MAX_EPOCHS + 1), desc="Training", unit="epoch")
+    epoch_bar = tqdm(range(1, MAX_EPOCHS + 1), desc="  Training", unit="epoch")
     for epoch in epoch_bar:
         model.train()
         train_loss = 0.0
-        for tokens, mask, y in tqdm(train_loader, desc=f"  epoch {epoch:3d} train", leave=False):
+        for tokens, mask, y in tqdm(train_loader, desc=f"    epoch {epoch:3d} train", leave=False):
             tokens, mask, y = tokens.to(DEVICE), mask.to(DEVICE), y.to(DEVICE)
             optimizer.zero_grad()
             loss = criterion(model(tokens, mask), y)
@@ -340,7 +286,7 @@ def main() -> None:
         model.eval()
         val_loss = 0.0
         with torch.no_grad():
-            for tokens, mask, y in tqdm(val_loader, desc=f"  epoch {epoch:3d} val  ", leave=False):
+            for tokens, mask, y in tqdm(val_loader, desc=f"    epoch {epoch:3d} val  ", leave=False):
                 val_loss += criterion(
                     model(tokens.to(DEVICE), mask.to(DEVICE)), y.to(DEVICE)
                 ).item() * len(y)
@@ -362,26 +308,82 @@ def main() -> None:
         )
 
         if no_improve >= PATIENCE:
-            print(f"\n  Early stop at epoch {epoch}")
+            print(f"\n    Early stop at epoch {epoch}")
             break
 
     model.load_state_dict({k: v.to(DEVICE) for k, v in best_state.items()})
 
-    print("\n[eval] Computing test metrics …")
-    y_test    = np.array(ds["test"]["B"], dtype=np.float32)
-    y_pred    = predict_from_seqs(model, ds["test"]["Peptide"])
+    y_pred       = predict_from_seqs(model, test_seqs)
     test_metrics = regression_metrics(y_test, y_pred)
     print(f"  RMSE={test_metrics['rmse']:.4f}  "
           f"Pearson={test_metrics['pearson']:+.4f}  "
           f"Spearman={test_metrics['spearman']:+.4f}")
 
-    print("[eval] Stereo-pair ordering accuracy …")
     stereo_metrics = stereo_ordering_accuracy(model, stereo)
     print(f"  Ordering accuracy: {stereo_metrics['ordering_acc']:.4f}  "
           f"({stereo_metrics['n_correct']}/{stereo_metrics['n_pairs']})")
 
+    return test_metrics, stereo_metrics, history
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--seed", type=int, default=0,
+                        help="Training seed (default: 0)")
+    parser.add_argument("--epochs", type=int, default=MAX_EPOCHS,
+                        help=f"Max training epochs (default: {MAX_EPOCHS})")
+    args = parser.parse_args()
+    seed = args.seed
+
+    global MAX_EPOCHS, PATIENCE
+    MAX_EPOCHS = args.epochs
+    PATIENCE   = max(1, int(0.1 * MAX_EPOCHS))
+
+    print(f"Device: {DEVICE}  |  seed={seed}  |  max_epochs={MAX_EPOCHS}  |  patience={PATIENCE}")
+    t0 = time.time()
+
+    print("[data] Loading peptag dataset …")
+    ds     = hf_load_dataset(HF_REPO, "peptag")
+    stereo = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
+
+    print("[tokenize] Building token tensors …")
+    train_tok, train_mask = tokenize_batch(ds["train"]["Peptide"])
+    val_tok,   val_mask   = tokenize_batch(ds["val"]["Peptide"])
+
+    y_train = torch.tensor(ds["train"]["B"], dtype=torch.float32)
+    y_val   = torch.tensor(ds["val"]["B"],   dtype=torch.float32)
+    y_test  = np.array(ds["test"]["B"],      dtype=np.float32)
+
+    train_loader = DataLoader(
+        TensorDataset(train_tok, train_mask, y_train),
+        batch_size=BATCH_SIZE, shuffle=True,
+    )
+    val_loader = DataLoader(
+        TensorDataset(val_tok, val_mask, y_val),
+        batch_size=BATCH_SIZE,
+    )
+
+    n_params = sum(p.numel() for p in PeptideTransformer().parameters() if p.requires_grad)
+    print(f"[model] PeptideTransformer | {n_params:,} params | device={DEVICE}")
+
+    print(f"\n── Seed {seed} ──")
+    test_metrics, stereo_metrics, history = run_one_seed(
+        seed, train_loader, val_loader, ds["test"]["Peptide"], y_test, stereo
+    )
+
     print(f"\nTotal time: {time.time() - t0:.1f}s")
-    write_results(test_metrics, stereo_metrics, history, n_params)
+
+    config = {
+        "d_model": D_MODEL, "n_heads": N_HEADS, "n_layers": N_LAYERS,
+        "ffn_mult": FFN_MULT, "dropout": DROPOUT, "max_seq_len": MAX_SEQ_LEN,
+        "vocab_size": VOCAB_SIZE, "lr": LR, "weight_decay": WEIGHT_DECAY,
+        "batch_size": BATCH_SIZE, "max_epochs": MAX_EPOCHS, "patience": PATIENCE, "device": DEVICE,
+    }
+    training = {
+        "epochs_run": history[-1]["epoch"],
+        "best_val_loss": min(h["val_loss"] for h in history),
+    }
+    save_results(seed, test_metrics, stereo_metrics, training, config, RESULTS_DIR, "results_transformer_scratch")
 
 
 if __name__ == "__main__":

@@ -1,3 +1,15 @@
+# ── DeepRT benchmark dependencies ─────────────────────────────────────────────
+datasets==4.7.0
+esm==3.2.3
+huggingface-hub==0.36.2
+rdkit==2025.3.3
+tokenizers==0.21.4
+torch-geometric==2.7.0
+torch-scatter==2.1.2
+torch-sparse==0.6.18
+torch-cluster==1.6.3
+
+# ── Base environment (pinned) ──────────────────────────────────────────────────
 absl-py==2.3.1
 aiohappyeyeballs==2.6.1
 aiohttp==3.12.14
