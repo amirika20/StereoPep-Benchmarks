@@ -80,7 +80,7 @@ case "$CLUSTER" in
         GPUS="${GPUS:-1}"
         GRES="gpu:nvidia_h100_80gb_hbm3:${GPUS}"
         ACCOUNT="kempner_mzitnik_lab"
-        MODULE_CMDS="module load python
+        MODULE_CMDS="module load Miniforge3/26.1.0-fasrc01
 module load cuda/12.9.1-fasrc01"
         NGSFM_CONDA_ENV="${NGSFM_CONDA_ENV:-/n/home04/akazeminia/.conda/envs/deeprt}"
         ;;
