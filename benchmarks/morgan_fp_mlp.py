@@ -295,6 +295,8 @@ def run_one_seed(seed: int, X_train, X_val, X_test, y_train, y_val, y_test, sp):
 
 
 def main() -> None:
+    global MAX_EPOCHS, PATIENCE
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--seed", type=int, default=0,
@@ -307,7 +309,6 @@ def main() -> None:
     args = parser.parse_args()
     seed = args.seed
 
-    global MAX_EPOCHS, PATIENCE
     MAX_EPOCHS = args.epochs
     PATIENCE = max(1, int(0.1 * MAX_EPOCHS))
 
