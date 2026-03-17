@@ -23,11 +23,13 @@ Pipeline
 3. Evaluate on the test split with regression metrics (pre-computed after train).
 4. Evaluate stereochemistry ordering accuracy on the stereo_pairs split.
 
-Results are written to benchmarks/results_esm3_embedding.txt.
+Results are written to benchmarks/results_esm3_embedding_seed{N}.json.
 """
 
 from __future__ import annotations
 
+import argparse
+import json
 import time
 from datetime import datetime
 from pathlib import Path
@@ -53,10 +55,10 @@ WEIGHT_DECAY = 1e-4
 TRAIN_BATCH  = 32    # smaller: each batch runs a full ESM3 forward pass
 ENCODE_BATCH = 32    # batch size for no-grad encoding (val/test/stereo)
 MAX_EPOCHS   = 20
-PATIENCE     = 5
+PATIENCE     = 5      # overridden at runtime to 0.1 * MAX_EPOCHS
 DEVICE       = "cuda" if torch.cuda.is_available() else "cpu"
 
-RESULTS_FILE = Path(__file__).parent / "results_esm3_embedding.txt"
+RESULTS_DIR  = Path(__file__).parent
 
 
 # ── learnable single-token embedding ─────────────────────────────────────────
@@ -238,62 +240,88 @@ def stereo_ordering_accuracy(model: MLP, esm, tok, stereo_ds) -> dict:
         n_tied_pred=int(tied_pred),
         n_evaluated=int(n_eval),
         n_correct=int(correct),
-        ordering_accuracy=float(acc),
+        ordering_acc=float(acc),
     )
+
+
+# ── reporting ─────────────────────────────────────────────────────────────────
+
+class _NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer): return int(obj)
+        if isinstance(obj, np.floating): return float(obj)
+        if isinstance(obj, np.ndarray): return obj.tolist()
+        return super().default(obj)
+
+
+def save_results(
+    seed: int,
+    test_metrics: dict,
+    stereo_metrics: dict,
+    training: dict,
+    config: dict,
+    output_dir: Path,
+    stem: str,
+) -> None:
+    result = {
+        "benchmark": stem,
+        "seed": seed,
+        "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        "config": config,
+        "training": training,
+        "test_metrics": test_metrics,
+        "stereo_metrics": stereo_metrics,
+    }
+    out = output_dir / f"{stem}_seed{seed}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(result, indent=2, cls=_NpEncoder))
+    print(f"\nResults saved to {out}")
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
 
-def main() -> None:
-    t0 = time.time()
+def run_one_seed(
+    seed: int,
+    esm,
+    tok,
+    f_emb_init: torch.Tensor,
+    esm_learnable: list,
+    train_loader,
+    val_loader,
+    y_test: np.ndarray,
+    stereo,
+) -> tuple[dict, dict, dict]:
+    torch.manual_seed(seed)
+    np.random.seed(seed)
 
-    print("[data] Loading peptag dataset …")
-    ds     = hf_load_dataset(HF_REPO, "peptag")
-    stereo = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
+    # Reset learnable f_embedding to its initial value
+    with torch.no_grad():
+        esm_learnable[0].copy_(f_emb_init.to(DEVICE))
 
-    esm, tok = load_esm3()
+    emb_dim = esm_learnable[0].shape[0]
+    mlp     = MLP(emb_dim, HIDDEN_DIM, N_LAYERS, DROPOUT).to(DEVICE)
 
-    # Collect all learnable parameters: f_embedding + MLP head (added below)
-    esm_learnable = [p for p in esm.parameters() if p.requires_grad]
-    print(f"[ESM3] Learnable ESM3 params: {sum(p.numel() for p in esm_learnable)}  "
-          f"(just the 'f' embedding vector)")
-
-    y_train = np.array(ds["train"]["B"], dtype=np.float32)
-    y_val   = np.array(ds["val"]["B"],   dtype=np.float32)
-
-    train_loader = DataLoader(
-        SequenceDataset(ds["train"]["Peptide"], y_train),
-        batch_size=TRAIN_BATCH, shuffle=True, collate_fn=seq_collate,
-    )
-    val_loader = DataLoader(
-        SequenceDataset(ds["val"]["Peptide"], y_val),
-        batch_size=TRAIN_BATCH, shuffle=False, collate_fn=seq_collate,
-    )
-
-    emb_dim = 1536
-    print(f"\n[train] MLP head + f_embedding on ESM3  (dim={emb_dim}) | device={DEVICE}")
-    mlp       = MLP(emb_dim, HIDDEN_DIM, N_LAYERS, DROPOUT).to(DEVICE)
     optimizer = torch.optim.Adam(
         esm_learnable + list(mlp.parameters()), lr=LR, weight_decay=WEIGHT_DECAY
     )
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, factor=0.5)
     criterion = nn.MSELoss()
 
-    best_val_loss = float("inf")
+    best_val_loss  = float("inf")
     best_mlp_state = None
     best_f_emb     = None
     no_improve     = 0
+    epochs_run     = 0
 
-    epoch_bar = tqdm(range(1, MAX_EPOCHS + 1), desc="Training", unit="epoch")
+    epoch_bar = tqdm(range(1, MAX_EPOCHS + 1), desc="  Training", unit="epoch")
     for epoch in epoch_bar:
         mlp.train()
-        esm.train()   # allow Dropout in ESM3 to be active if any
+        esm.train()
         train_loss = 0.0
-
-        for seqs, y in tqdm(train_loader, desc=f"  epoch {epoch:3d} train", leave=False):
+        for seqs, y in tqdm(train_loader, desc=f"    epoch {epoch:3d} train", leave=False):
             y = y.to(DEVICE)
             optimizer.zero_grad()
-            pooled = embed_batch(esm, tok, seqs)   # f_embedding gradient flows here
+            pooled = embed_batch(esm, tok, seqs)
             loss   = criterion(mlp(pooled), y)
             loss.backward()
             optimizer.step()
@@ -304,12 +332,13 @@ def main() -> None:
         esm.eval()
         val_loss = 0.0
         with torch.no_grad():
-            for seqs, y in tqdm(val_loader, desc=f"  epoch {epoch:3d} val  ", leave=False):
+            for seqs, y in tqdm(val_loader, desc=f"    epoch {epoch:3d} val  ", leave=False):
                 pooled    = embed_batch(esm, tok, seqs)
                 val_loss += criterion(mlp(pooled), y.to(DEVICE)).item() * len(y)
         val_loss /= len(val_loader.dataset)
 
         scheduler.step(val_loss)
+        epochs_run = epoch
 
         if val_loss < best_val_loss:
             best_val_loss  = val_loss
@@ -325,61 +354,90 @@ def main() -> None:
         )
 
         if no_improve >= PATIENCE:
-            print(f"\n  Early stop at epoch {epoch}")
+            print(f"\n    Early stop at epoch {epoch}")
             break
 
-    # Restore best weights
     mlp.load_state_dict({k: v.to(DEVICE) for k, v in best_mlp_state.items()})
     with torch.no_grad():
         esm_learnable[0].copy_(best_f_emb.to(DEVICE))
     mlp.eval()
     esm.eval()
 
-    # Final evaluation — pre-compute embeddings once with best weights
-    print("\n[eval] Pre-computing test embeddings …")
-    emb_test = embed_sequences(esm, tok, ds["test"]["Peptide"], desc="Test  ")
-    y_test   = np.array(ds["test"]["B"], dtype=np.float32)
-
-    print("[eval] Computing test metrics …")
+    print("  [eval] Pre-computing test embeddings …")
+    emb_test     = embed_sequences(esm, tok, list(ds_test_peptides), desc="Test  ")
     test_metrics = evaluate(mlp, emb_test, y_test)
+    print(f"  RMSE={test_metrics['rmse']:.4f}  "
+          f"Pearson={test_metrics['pearson']:+.4f}  "
+          f"Spearman={test_metrics['spearman']:+.4f}")
 
-    print("[eval] Stereo-pair ordering accuracy …")
     stereo_metrics = stereo_ordering_accuracy(mlp, esm, tok, stereo)
+    print(f"  Ordering accuracy: {stereo_metrics['ordering_acc']:.4f}  "
+          f"({stereo_metrics['n_correct']}/{stereo_metrics['n_evaluated']})")
+
+    training_summary = {"epochs_run": epochs_run, "best_val_loss": best_val_loss}
+    return test_metrics, stereo_metrics, training_summary
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--seed", type=int, default=0,
+                        help="Training seed (default: 0)")
+    parser.add_argument("--epochs", type=int, default=MAX_EPOCHS,
+                        help=f"Max training epochs (default: {MAX_EPOCHS})")
+    args = parser.parse_args()
+    seed = args.seed
+
+    global MAX_EPOCHS, PATIENCE, ds_test_peptides
+    MAX_EPOCHS = args.epochs
+    PATIENCE   = max(1, int(0.1 * MAX_EPOCHS))
+
+    print(f"Device: {DEVICE}  |  seed={seed}  |  max_epochs={MAX_EPOCHS}  |  patience={PATIENCE}")
+    t0 = time.time()
+
+    print("[data] Loading peptag dataset …")
+    ds     = hf_load_dataset(HF_REPO, "peptag")
+    stereo = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
+    ds_test_peptides = ds["test"]["Peptide"]
+
+    esm, tok = load_esm3()
+
+    esm_learnable = [p for p in esm.parameters() if p.requires_grad]
+    print(f"[ESM3] Learnable ESM3 params: {sum(p.numel() for p in esm_learnable)}  "
+          f"(just the 'f' embedding vector)")
+
+    # Snapshot the initial f_embedding so we can reset it between seeds
+    f_emb_init = esm_learnable[0].detach().cpu().clone()
+    emb_dim    = f_emb_init.shape[0]
+
+    y_train = np.array(ds["train"]["B"], dtype=np.float32)
+    y_val   = np.array(ds["val"]["B"],   dtype=np.float32)
+    y_test  = np.array(ds["test"]["B"],  dtype=np.float32)
+
+    train_loader = DataLoader(
+        SequenceDataset(ds["train"]["Peptide"], y_train),
+        batch_size=TRAIN_BATCH, shuffle=True, collate_fn=seq_collate,
+    )
+    val_loader = DataLoader(
+        SequenceDataset(ds["val"]["Peptide"], y_val),
+        batch_size=TRAIN_BATCH, shuffle=False, collate_fn=seq_collate,
+    )
+
+    print(f"\n── Seed {seed} ──")
+    test_metrics, stereo_metrics, training_summary = run_one_seed(
+        seed, esm, tok, f_emb_init, esm_learnable,
+        train_loader, val_loader, y_test, stereo,
+    )
 
     elapsed = time.time() - t0
+    print(f"\nTotal time: {elapsed:.1f}s")
 
-    lines = [
-        "=" * 60,
-        "ESM3 Embedding MLP Benchmark  (learnable D-Phe token)",
-        f"Run: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        f"Model: {ESM_MODEL}  |  Embedding dim: {emb_dim}",
-        f"Learnable params: f_embedding (1×{emb_dim}) + MLP head",
-        f"MLP: {N_LAYERS} hidden layers × {HIDDEN_DIM}  |  dropout={DROPOUT}",
-        f"Epochs (max {MAX_EPOCHS}, patience {PATIENCE})  |  "
-        f"LR={LR}  batch={TRAIN_BATCH}",
-        f"Device: {DEVICE}  |  Total time: {elapsed:.1f}s",
-        "-" * 60,
-        "Test split metrics:",
-        f"  RMSE      : {test_metrics['rmse']:.4f}",
-        f"  MAE       : {test_metrics['mae']:.4f}",
-        f"  Pearson r : {test_metrics['pearson']:.4f}",
-        f"  Spearman ρ: {test_metrics['spearman']:.4f}",
-        f"  Kendall τ : {test_metrics['kendall']:.4f}",
-        "-" * 60,
-        "Stereo-pair ordering (D-Phe 'f' vs L-Phe 'F'):",
-        f"  Total pairs    : {stereo_metrics['n_pairs']}",
-        f"  Tied (true)    : {stereo_metrics['n_tied_true']}",
-        f"  Tied (pred)    : {stereo_metrics['n_tied_pred']}",
-        f"  Evaluated      : {stereo_metrics['n_evaluated']}",
-        f"  Correct        : {stereo_metrics['n_correct']}",
-        f"  Ordering acc.  : {stereo_metrics['ordering_accuracy']:.4f}",
-        "=" * 60,
-    ]
-
-    report = "\n".join(lines)
-    print("\n" + report)
-    RESULTS_FILE.write_text(report + "\n")
-    print(f"\nResults saved to {RESULTS_FILE}")
+    config = {
+        "esm_model": ESM_MODEL, "emb_dim": emb_dim, "hidden_dim": HIDDEN_DIM,
+        "n_layers": N_LAYERS, "dropout": DROPOUT, "lr": LR,
+        "weight_decay": WEIGHT_DECAY, "train_batch": TRAIN_BATCH,
+        "max_epochs": MAX_EPOCHS, "patience": PATIENCE, "device": DEVICE,
+    }
+    save_results(seed, test_metrics, stereo_metrics, training_summary, config, RESULTS_DIR, "results_esm3_embedding")
 
 
 if __name__ == "__main__":

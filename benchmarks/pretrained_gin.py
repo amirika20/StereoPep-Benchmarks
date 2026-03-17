@@ -19,11 +19,13 @@ Pipeline:
   5. Evaluate stereochemistry ordering accuracy on stereo_pairs (D-Phe vs
      L-Phe).
 
-Results are written to benchmarks/results_pretrained_gin.txt.
+Results are written to benchmarks/results_pretrained_gin_seed{N}.json.
 """
 
 from __future__ import annotations
 
+import argparse
+import json
 import time
 import urllib.request
 from datetime import datetime
@@ -71,10 +73,10 @@ LR_HEAD       = 1e-3   # higher LR for the new prediction head
 WEIGHT_DECAY  = 1e-4
 BATCH_SIZE    = 64     # smaller batches — each sample is a molecular graph
 MAX_EPOCHS    = 20
-PATIENCE      = 5
+PATIENCE      = 5      # overridden at runtime to 0.1 * MAX_EPOCHS
 DEVICE        = "cuda" if torch.cuda.is_available() else "cpu"
 
-RESULTS_FILE  = Path(__file__).parent / "results_pretrained_gin.txt"
+RESULTS_DIR   = Path(__file__).parent
 
 
 # ── pretrained weight download ────────────────────────────────────────────────
@@ -427,98 +429,52 @@ def stereo_ordering_accuracy(model: GINPredictor, stereo_ds) -> dict:
 
 # ── reporting ─────────────────────────────────────────────────────────────────
 
-def write_results(
+class _NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer): return int(obj)
+        if isinstance(obj, np.floating): return float(obj)
+        if isinstance(obj, np.ndarray): return obj.tolist()
+        return super().default(obj)
+
+
+def save_results(
+    seed: int,
     test_metrics: dict,
     stereo_metrics: dict,
-    history: list[dict],
-    output_file: Path,
+    training: dict,
+    config: dict,
+    output_dir: Path,
+    stem: str,
 ) -> None:
-    last = history[-1]
-    best_val = min(h["val_loss"] for h in history)
-
-    lines = [
-        "=" * 70,
-        "Pretrained GIN — Retention Time Prediction",
-        f"Dataset    : {HF_REPO}",
-        f"Checkpoint : gin_supervised_contextpred (snap-stanford, Hu et al. 2020)",
-        f"Run at     : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        "=" * 70,
-        "",
-        "Model configuration",
-        "-" * 40,
-        f"  GIN layers          : {GIN_LAYERS}",
-        f"  GIN emb dim         : {GIN_EMB_DIM}",
-        f"  Head hidden dim     : {HEAD_HIDDEN}",
-        f"  Head layers         : {HEAD_LAYERS}",
-        f"  Dropout             : {DROPOUT}",
-        f"  Optimiser           : AdamW  lr_backbone={LR_BACKBONE}  lr_head={LR_HEAD}",
-        f"  Weight decay        : {WEIGHT_DECAY}",
-        f"  Batch size          : {BATCH_SIZE}",
-        f"  Max epochs          : {MAX_EPOCHS}  (early stop patience={PATIENCE})",
-        f"  Device              : {DEVICE}",
-        "",
-        "Training summary",
-        "-" * 40,
-        f"  Stopped at epoch    : {last['epoch']}",
-        f"  Best val MSE loss   : {best_val:.4f}",
-        "",
-        "Test-split regression metrics",
-        "-" * 40,
-        f"  RMSE                : {test_metrics['rmse']:.4f}",
-        f"  MAE                 : {test_metrics['mae']:.4f}",
-        f"  Pearson  r          : {test_metrics['pearson']:+.4f}",
-        f"  Spearman r          : {test_metrics['spearman']:+.4f}",
-        f"  Kendall  τ          : {test_metrics['kendall']:+.4f}",
-        "",
-        "Stereo-pair ordering (D-Phe vs L-Phe)",
-        "-" * 40,
-        f"  N pairs evaluated   : {stereo_metrics['n_pairs']}",
-        f"  Correct order       : {stereo_metrics['n_correct']}",
-        f"  Ordering accuracy   : {stereo_metrics['ordering_acc']:.4f}",
-        f"  Δ Pearson  r        : {stereo_metrics['delta_pearson']:+.4f}",
-        f"  Δ Spearman r        : {stereo_metrics['delta_spearman']:+.4f}",
-        f"  Mean true  Δ B      : {stereo_metrics['mean_true_delta']:+.4f}",
-        f"  Mean pred  Δ B      : {stereo_metrics['mean_pred_delta']:+.4f}",
-        "",
-        "Training loss curve (every 10 epochs + last)",
-        "-" * 40,
-    ]
-    reported = {h["epoch"] for h in history if h["epoch"] % 10 == 0}
-    reported.add(history[-1]["epoch"])
-    for h in history:
-        if h["epoch"] in reported:
-            lines.append(
-                f"  epoch {h['epoch']:3d}  train={h['train_loss']:.4f}  val={h['val_loss']:.4f}"
-            )
-
-    output_file.parent.mkdir(parents=True, exist_ok=True)
-    output_file.write_text("\n".join(lines) + "\n")
-    print(f"\nResults written to {output_file}")
+    result = {
+        "benchmark": stem,
+        "seed": seed,
+        "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        "config": config,
+        "training": training,
+        "test_metrics": test_metrics,
+        "stereo_metrics": stereo_metrics,
+    }
+    out = output_dir / f"{stem}_seed{seed}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(result, indent=2, cls=_NpEncoder))
+    print(f"\nResults saved to {out}")
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
 
-def main() -> None:
-    print(f"Device: {DEVICE}")
-
-    # Download pretrained weights
-    print("Checking pretrained GIN weights …")
-    download_weights()
-
-    # Load dataset
-    print("Loading peptag dataset …")
-    ds = hf_load_dataset(HF_REPO, "peptag")
-    sp = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
-
-    # Build molecular graphs
-    graphs_train, _ = encode_smiles(ds["train"]["SMILES"], desc="Graphs train")
-    graphs_val,   _ = encode_smiles(ds["val"]["SMILES"],   desc="Graphs val  ")
-    graphs_test,  _ = encode_smiles(ds["test"]["SMILES"],  desc="Graphs test ")
-
-    y_train = np.array(ds["train"]["B"], dtype=np.float32)
-    y_val   = np.array(ds["val"]["B"],   dtype=np.float32)
-    y_test  = np.array(ds["test"]["B"],  dtype=np.float32)
-    print(f"  train={len(y_train)}  val={len(y_val)}  test={len(y_test)}")
+def run_one_seed(
+    seed: int,
+    graphs_train: list,
+    graphs_val: list,
+    graphs_test: list,
+    y_train: np.ndarray,
+    y_val: np.ndarray,
+    y_test: np.ndarray,
+    sp,
+) -> tuple[dict, dict, list[dict]]:
+    torch.manual_seed(seed)
+    np.random.seed(seed)
 
     train_loader = PlainDataLoader(
         GraphDataset(graphs_train, y_train), batch_size=BATCH_SIZE,
@@ -529,33 +485,70 @@ def main() -> None:
         shuffle=False, collate_fn=collate_fn, num_workers=0,
     )
 
-    # Build model and load pretrained encoder
     model = GINPredictor().to(DEVICE)
-    print("Loading pretrained GIN encoder …")
     model.load_pretrained_encoder(WEIGHTS_FILE)
-    n_params = sum(p.numel() for p in model.parameters())
-    print(f"  Total parameters: {n_params:,}")
 
-    # Fine-tune
-    print("Fine-tuning …")
-    t0 = time.time()
-    history = train(model, train_loader, val_loader)
-    print(f"Training done in {time.time() - t0:.1f}s")
-
-    # Test metrics
-    print("Evaluating on test split …")
-    y_pred_test = predict(model, graphs_test)
+    history      = train(model, train_loader, val_loader)
+    y_pred_test  = predict(model, graphs_test)
     test_metrics = regression_metrics(y_test, y_pred_test)
     print(f"  RMSE={test_metrics['rmse']:.4f}  Pearson={test_metrics['pearson']:+.4f}"
           f"  Spearman={test_metrics['spearman']:+.4f}")
 
-    # Stereo ordering
-    print("Evaluating stereo-pair ordering …")
     stereo_metrics = stereo_ordering_accuracy(model, sp)
     print(f"  Ordering accuracy: {stereo_metrics['ordering_acc']:.4f}"
           f"  ({stereo_metrics['n_correct']}/{stereo_metrics['n_pairs']})")
 
-    write_results(test_metrics, stereo_metrics, history, RESULTS_FILE)
+    return test_metrics, stereo_metrics, history
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--seed", type=int, default=0,
+                        help="Training seed (default: 0)")
+    parser.add_argument("--epochs", type=int, default=MAX_EPOCHS,
+                        help=f"Max training epochs (default: {MAX_EPOCHS})")
+    args = parser.parse_args()
+    seed = args.seed
+
+    global MAX_EPOCHS, PATIENCE
+    MAX_EPOCHS = args.epochs
+    PATIENCE   = max(1, int(0.1 * MAX_EPOCHS))
+
+    print(f"Device: {DEVICE}  |  seed={seed}  |  max_epochs={MAX_EPOCHS}  |  patience={PATIENCE}")
+
+    print("Checking pretrained GIN weights …")
+    download_weights()
+
+    print("Loading peptag dataset …")
+    ds = hf_load_dataset(HF_REPO, "peptag")
+    sp = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
+
+    graphs_train, _ = encode_smiles(ds["train"]["SMILES"], desc="Graphs train")
+    graphs_val,   _ = encode_smiles(ds["val"]["SMILES"],   desc="Graphs val  ")
+    graphs_test,  _ = encode_smiles(ds["test"]["SMILES"],  desc="Graphs test ")
+
+    y_train = np.array(ds["train"]["B"], dtype=np.float32)
+    y_val   = np.array(ds["val"]["B"],   dtype=np.float32)
+    y_test  = np.array(ds["test"]["B"],  dtype=np.float32)
+    print(f"  train={len(y_train)}  val={len(y_val)}  test={len(y_test)}")
+
+    print(f"\n── Seed {seed} ──")
+    test_metrics, stereo_metrics, history = run_one_seed(
+        seed, graphs_train, graphs_val, graphs_test, y_train, y_val, y_test, sp
+    )
+
+    config = {
+        "gin_layers": GIN_LAYERS, "gin_emb_dim": GIN_EMB_DIM,
+        "head_hidden": HEAD_HIDDEN, "head_layers": HEAD_LAYERS,
+        "dropout": DROPOUT, "lr_backbone": LR_BACKBONE, "lr_head": LR_HEAD,
+        "weight_decay": WEIGHT_DECAY, "batch_size": BATCH_SIZE,
+        "max_epochs": MAX_EPOCHS, "patience": PATIENCE, "device": DEVICE,
+    }
+    training = {
+        "epochs_run": history[-1]["epoch"],
+        "best_val_loss": min(h["val_loss"] for h in history),
+    }
+    save_results(seed, test_metrics, stereo_metrics, training, config, RESULTS_DIR, "results_pretrained_gin")
 
 
 if __name__ == "__main__":

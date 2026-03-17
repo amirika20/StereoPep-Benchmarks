@@ -24,11 +24,13 @@ with α = 2.5e-7 and a leaky ReLU capped at 20.  The one-hot path uses tanh.
 
 Adapted MAX_LEN=20 (original paper uses 60; peptag sequences are 6–17 AA).
 
-Results are written to benchmarks/results_deeplc.txt.
+Results are written to benchmarks/results_deeplc_seed{N}.json.
 """
 
 from __future__ import annotations
 
+import argparse
+import json
 import time
 from datetime import datetime
 from pathlib import Path
@@ -60,10 +62,10 @@ LR           = 1e-3
 WEIGHT_DECAY = 0.0         # manual L1 used instead
 BATCH_SIZE   = 256
 MAX_EPOCHS   = 50
-PATIENCE     = 8
+PATIENCE     = 8          # overridden at runtime to 0.1 * MAX_EPOCHS
 DEVICE       = "cuda" if torch.cuda.is_available() else "cpu"
 
-RESULTS_FILE = Path(__file__).parent / "results_deeplc.txt"
+RESULTS_DIR  = Path(__file__).parent
 
 
 # ── atom counts ────────────────────────────────────────────────────────────────
@@ -438,90 +440,88 @@ def stereo_ordering_accuracy(
 
 # ── reporting ─────────────────────────────────────────────────────────────────
 
-def write_results(
-    test_metrics:    dict,
-    stereo_metrics:  dict,
-    histories:       dict[int, list[dict]],
-    n_params_each:   int,
+class _NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer): return int(obj)
+        if isinstance(obj, np.floating): return float(obj)
+        if isinstance(obj, np.ndarray): return obj.tolist()
+        return super().default(obj)
+
+
+def save_results(
+    seed: int,
+    test_metrics: dict,
+    stereo_metrics: dict,
+    training: dict,
+    config: dict,
+    output_dir: Path,
+    stem: str,
 ) -> None:
-    total_epochs = {k: h[-1]["epoch"] for k, h in histories.items()}
-    best_vals    = {k: min(h["val_loss"] for h in hs)
-                   for k, hs in histories.items()}
-
-    lines = [
-        "=" * 70,
-        "DeepLC (Bouwmeester et al., 2021) — Retention Time Prediction",
-        f"Dataset : {HF_REPO}",
-        f"Run at  : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        "=" * 70,
-        "",
-        "Model configuration",
-        "-" * 40,
-        f"  Architecture        : 4-path CNN + 6 dense layers (ensemble)",
-        f"  Kernel sizes        : {KERNEL_SIZES}  (one model each, averaged)",
-        f"  Conv filters        : {CONV_FILTERS}",
-        f"  Dense hidden        : {DENSE_HIDDEN}",
-        f"  Final dense layers  : {N_DENSE}",
-        f"  MAX_LEN             : {MAX_LEN}",
-        f"  L1 alpha            : {L1_ALPHA}",
-        f"  Leaky ReLU cap      : {MAX_ACT}",
-        f"  Params per model    : {n_params_each:,}",
-        f"  Optimizer           : Adam  lr={LR}",
-        f"  Batch size          : {BATCH_SIZE}",
-        f"  Max epochs          : {MAX_EPOCHS}  (early stop patience={PATIENCE})",
-        f"  Device              : {DEVICE}",
-        "",
-        "Training summary (per kernel size)",
-        "-" * 40,
-    ]
-    for k in KERNEL_SIZES:
-        lines.append(
-            f"  kernel={k}  stopped={total_epochs[k]:3d}  "
-            f"best_val={best_vals[k]:.4f}"
-        )
-    lines += [
-        "",
-        "Test-split regression metrics  (ensemble)",
-        "-" * 40,
-        f"  RMSE                : {test_metrics['rmse']:.4f}",
-        f"  MAE                 : {test_metrics['mae']:.4f}",
-        f"  Pearson  r          : {test_metrics['pearson']:+.4f}",
-        f"  Spearman r          : {test_metrics['spearman']:+.4f}",
-        f"  Kendall  τ          : {test_metrics['kendall']:+.4f}",
-        "",
-        "Stereo-pair ordering (D-Phe vs L-Phe)  (ensemble)",
-        "-" * 40,
-        f"  N pairs evaluated   : {stereo_metrics['n_pairs']}",
-        f"  Correct order       : {stereo_metrics['n_correct']}",
-        f"  Ordering accuracy   : {stereo_metrics['ordering_acc']:.4f}",
-        f"  Δ Pearson  r        : {stereo_metrics['delta_pearson']:+.4f}",
-        f"  Δ Spearman r        : {stereo_metrics['delta_spearman']:+.4f}",
-        f"  Mean true  Δ B      : {stereo_metrics['mean_true_delta']:+.4f}",
-        f"  Mean pred  Δ B      : {stereo_metrics['mean_pred_delta']:+.4f}",
-        "",
-    ]
-
-    for k, hs in histories.items():
-        lines.append(f"Training loss curve  kernel={k}  (every 10 epochs + last)")
-        lines.append("-" * 40)
-        reported = {h["epoch"] for h in hs if h["epoch"] % 10 == 0}
-        reported.add(hs[-1]["epoch"])
-        for h in hs:
-            if h["epoch"] in reported:
-                lines.append(
-                    f"  epoch {h['epoch']:3d}  "
-                    f"train={h['train_loss']:.4f}  val={h['val_loss']:.4f}"
-                )
-        lines.append("")
-
-    RESULTS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    RESULTS_FILE.write_text("\n".join(lines) + "\n")
-    print(f"\nResults written to {RESULTS_FILE}")
+    result = {
+        "benchmark": stem,
+        "seed": seed,
+        "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        "config": config,
+        "training": training,
+        "test_metrics": test_metrics,
+        "stereo_metrics": stereo_metrics,
+    }
+    out = output_dir / f"{stem}_seed{seed}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(result, indent=2, cls=_NpEncoder))
+    print(f"\nResults saved to {out}")
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
 
+def run_one_seed(
+    seed: int,
+    train_loader,
+    val_loader,
+    aa_te, dia_te, oh_te, gl_te,
+    y_test: np.ndarray,
+    stereo,
+) -> tuple[dict, dict, dict]:
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+
+    trained_models: list[DeepLC]     = []
+    histories: dict[int, list[dict]] = {}
+
+    for K in KERNEL_SIZES:
+        print(f"  [train] kernel_size={K}")
+        model   = DeepLC(kernel_size=K).to(DEVICE)
+        history = train_one(model, train_loader, val_loader, K)
+        trained_models.append(model)
+        histories[K] = history
+
+    y_pred       = predict(trained_models, aa_te, dia_te, oh_te, gl_te)
+    test_metrics = regression_metrics(y_test, y_pred)
+    print(f"  RMSE={test_metrics['rmse']:.4f}  "
+          f"Pearson={test_metrics['pearson']:+.4f}  "
+          f"Spearman={test_metrics['spearman']:+.4f}")
+
+    stereo_metrics = stereo_ordering_accuracy(trained_models, stereo)
+    print(f"  Ordering accuracy: {stereo_metrics['ordering_acc']:.4f}  "
+          f"({stereo_metrics['n_correct']}/{stereo_metrics['n_pairs']})")
+
+    return test_metrics, stereo_metrics, histories
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--seed", type=int, default=0,
+                        help="Training seed (default: 0)")
+    parser.add_argument("--epochs", type=int, default=MAX_EPOCHS,
+                        help=f"Max training epochs (default: {MAX_EPOCHS})")
+    args = parser.parse_args()
+    seed = args.seed
+
+    global MAX_EPOCHS, PATIENCE
+    MAX_EPOCHS = args.epochs
+    PATIENCE   = max(1, int(0.1 * MAX_EPOCHS))
+
+    print(f"Device: {DEVICE}  |  seed={seed}  |  max_epochs={MAX_EPOCHS}  |  patience={PATIENCE}")
     t0 = time.time()
 
     print("[data] Loading peptag dataset …")
@@ -546,37 +546,25 @@ def main() -> None:
     train_loader = make_loader(aa_tr, dia_tr, oh_tr, gl_tr, y_train, shuffle=True)
     val_loader   = make_loader(aa_va, dia_va, oh_va, gl_va, y_val)
 
-    # Train one model per kernel size
-    trained_models: list[DeepLC] = []
-    histories: dict[int, list[dict]] = {}
-
-    for K in KERNEL_SIZES:
-        print(f"\n[train] kernel_size={K}")
-        model = DeepLC(kernel_size=K).to(DEVICE)
-        n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-        print(f"  Params: {n_params:,}")
-        history = train_one(model, train_loader, val_loader, K)
-        trained_models.append(model)
-        histories[K] = history
-
-    n_params_each = sum(
-        p.numel() for p in trained_models[0].parameters() if p.requires_grad
+    print(f"\n── Seed {seed} ──")
+    test_metrics, stereo_metrics, histories = run_one_seed(
+        seed, train_loader, val_loader,
+        aa_te, dia_te, oh_te, gl_te, y_test, stereo,
     )
 
-    print("\n[eval] Ensemble test metrics …")
-    y_pred = predict(trained_models, aa_te, dia_te, oh_te, gl_te)
-    test_metrics = regression_metrics(y_test, y_pred)
-    print(f"  RMSE={test_metrics['rmse']:.4f}  "
-          f"Pearson={test_metrics['pearson']:+.4f}  "
-          f"Spearman={test_metrics['spearman']:+.4f}")
-
-    print("[eval] Stereo-pair ordering …")
-    stereo_metrics = stereo_ordering_accuracy(trained_models, stereo)
-    print(f"  Ordering accuracy: {stereo_metrics['ordering_acc']:.4f}  "
-          f"({stereo_metrics['n_correct']}/{stereo_metrics['n_pairs']})")
-
     print(f"\nTotal time: {time.time() - t0:.1f}s")
-    write_results(test_metrics, stereo_metrics, histories, n_params_each)
+
+    config = {
+        "kernel_sizes": KERNEL_SIZES, "conv_filters": CONV_FILTERS,
+        "dense_hidden": DENSE_HIDDEN, "n_dense": N_DENSE, "max_len": MAX_LEN,
+        "l1_alpha": L1_ALPHA, "lr": LR, "batch_size": BATCH_SIZE,
+        "max_epochs": MAX_EPOCHS, "patience": PATIENCE, "device": DEVICE,
+    }
+    training = {
+        f"kernel_{k}": {"epochs_run": hs[-1]["epoch"], "best_val_loss": min(h["val_loss"] for h in hs)}
+        for k, hs in histories.items()
+    }
+    save_results(seed, test_metrics, stereo_metrics, training, config, RESULTS_DIR, "results_deeplc")
 
 
 if __name__ == "__main__":
