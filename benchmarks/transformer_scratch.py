@@ -54,7 +54,7 @@ MAX_EPOCHS   = 50
 PATIENCE     = 8          # overridden at runtime to 0.1 * MAX_EPOCHS
 DEVICE       = "cuda" if torch.cuda.is_available() else "cpu"
 
-RESULTS_DIR  = Path(__file__).parent
+RESULTS_DIR  = Path(__file__).parent / "output"
 
 
 # ── tokenizer ─────────────────────────────────────────────────────────────────
