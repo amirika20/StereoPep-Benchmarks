@@ -16,9 +16,6 @@ Usage
   # Dry run (print sbatch scripts, don't submit)
   python benchmarks/submit_benchmarks.py --dry-run
 
-  # Different cluster / epoch count
-  python benchmarks/submit_benchmarks.py --cluster o2 --epochs 200
-
   # List available benchmarks
   python benchmarks/submit_benchmarks.py --list
 """
@@ -90,14 +87,12 @@ def submit_one(
     cfg: dict,
     seeds: str,
     epochs: int,
-    cluster: str,
     dry_run: bool,
     extra_args: list[str],
 ) -> None:
     cmd = [
         str(SUBMIT_SH),
         "--benchmark",
-        "--cluster",  cluster,
         "--seeds",    seeds,
         "--time",     cfg.get("time", ""),
         "--mem",      cfg.get("mem",  ""),
@@ -147,17 +142,12 @@ def main() -> None:
         help="Benchmarks to submit (default: all). Use --list to see names.",
     )
     parser.add_argument(
-        "--seeds", default="0-4",
-        help="Seed range or list, e.g. '0-9' or '0 1 2 3 4' (default: 0-4)",
+        "--seeds", default="0-9",
+        help="Seed range or list, e.g. '0-9' or '0 1 2 3 4' (default: 0-9)",
     )
     parser.add_argument(
-        "--epochs", type=int, default=100,
-        help="Max training epochs passed to each benchmark (default: 100)",
-    )
-    parser.add_argument(
-        "--cluster", default="kempner",
-        choices=["kempner", "o2", "fas"],
-        help="Cluster preset (default: kempner)",
+        "--epochs", type=int, default=1000,
+        help="Max training epochs passed to each benchmark (default: 1000)",
     )
     parser.add_argument(
         "--dry-run", action="store_true",
@@ -183,7 +173,7 @@ def main() -> None:
     if not SUBMIT_SH.exists():
         parser.error(f"submit.sh not found at {SUBMIT_SH}")
 
-    print(f"Submitting {len(args.benchmarks)} benchmark(s) on {args.cluster}")
+    print(f"Submitting {len(args.benchmarks)} benchmark(s) on Kempner")
     print(f"Seeds: {args.seeds}  |  Epochs: {args.epochs}")
     if args.dry_run:
         print("(dry run)")
@@ -194,7 +184,6 @@ def main() -> None:
             cfg=BENCHMARKS[name],
             seeds=args.seeds,
             epochs=args.epochs,
-            cluster=args.cluster,
             dry_run=args.dry_run,
             extra_args=extra,
         )
