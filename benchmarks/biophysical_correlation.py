@@ -24,7 +24,7 @@ from scipy import stats
 # ── paths ────────────────────────────────────────────────────────────────────
 REPO_ROOT = Path(__file__).parent.parent
 DATA_DIR = REPO_ROOT / "data"
-RESULTS_FILE = Path(__file__).parent / "results.txt"
+RESULTS_FILE = Path(__file__).parent / "output" / "results.txt"
 HF_REPO = "amirka20/peptag"
 
 # ── per-residue lookup tables ─────────────────────────────────────────────────

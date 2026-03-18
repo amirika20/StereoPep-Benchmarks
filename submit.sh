@@ -96,6 +96,11 @@ set -euo pipefail
 
 module load cuda/12.9.1-fasrc01
 
+# Use local /tmp for HF cache to avoid NFS file-locking errors
+export HF_DATASETS_CACHE=/tmp/\${USER}/hf_cache
+export HF_HOME=/tmp/\${USER}/hf_home
+mkdir -p "\$HF_DATASETS_CACHE" "\$HF_HOME"
+
 echo "Node: \$SLURM_NODELIST | GPUs: $GPUS | Time: $TIME"
 
 $SEED_LOGIC
