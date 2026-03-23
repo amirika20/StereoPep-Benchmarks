@@ -1,0 +1,284 @@
+{
+  "Pretrained GIN": {
+    "n_seeds": 10,
+    "test_metrics": {
+      "rmse": {
+        "mean": 7.8373,
+        "std": 0.1662
+      },
+      "mae": {
+        "mean": 5.3696,
+        "std": 0.1174
+      },
+      "pearson": {
+        "mean": 0.7022,
+        "std": 0.0155
+      },
+      "spearman": {
+        "mean": 0.7525,
+        "std": 0.0169
+      },
+      "kendall": {
+        "mean": 0.5673,
+        "std": 0.0151
+      }
+    },
+    "stereo_metrics": {
+      "ordering_acc": {
+        "mean": 0.6443,
+        "std": 0.0146
+      },
+      "delta_pearson": {
+        "mean": 0.1406,
+        "std": 0.0684
+      },
+      "delta_spearman": {
+        "mean": 0.1724,
+        "std": 0.0656
+      },
+      "mean_pred_delta": {
+        "mean": 1.8057,
+        "std": 0.1852
+      },
+      "n_correct": {
+        "mean": 349.2,
+        "std": 7.8994
+      }
+    }
+  },
+  "Morgan FP MLP": {
+    "n_seeds": 10,
+    "test_metrics": {
+      "rmse": {
+        "mean": 9.2713,
+        "std": 0.1948
+      },
+      "mae": {
+        "mean": 6.7807,
+        "std": 0.1772
+      },
+      "pearson": {
+        "mean": 0.5177,
+        "std": 0.0173
+      },
+      "spearman": {
+        "mean": 0.5512,
+        "std": 0.0239
+      },
+      "kendall": {
+        "mean": 0.3889,
+        "std": 0.0179
+      }
+    },
+    "stereo_metrics": {
+      "ordering_acc": {
+        "mean": 0.6339,
+        "std": 0.022
+      },
+      "delta_pearson": {
+        "mean": -0.051,
+        "std": 0.0508
+      },
+      "delta_spearman": {
+        "mean": -0.0352,
+        "std": 0.0486
+      },
+      "mean_pred_delta": {
+        "mean": 1.1836,
+        "std": 0.2625
+      },
+      "n_correct": {
+        "mean": 343.6,
+        "std": 11.9182
+      }
+    }
+  },
+  "DeepLC": {
+    "n_seeds": 10,
+    "test_metrics": {
+      "rmse": {
+        "mean": 6.7308,
+        "std": 0.2395
+      },
+      "mae": {
+        "mean": 4.6702,
+        "std": 0.1865
+      },
+      "pearson": {
+        "mean": 0.801,
+        "std": 0.0131
+      },
+      "spearman": {
+        "mean": 0.8445,
+        "std": 0.016
+      },
+      "kendall": {
+        "mean": 0.6659,
+        "std": 0.0181
+      }
+    },
+    "stereo_metrics": {
+      "ordering_acc": {
+        "mean": 0.6218,
+        "std": 0.0684
+      },
+      "delta_pearson": {
+        "mean": 0.0344,
+        "std": 0.1179
+      },
+      "delta_spearman": {
+        "mean": 0.0664,
+        "std": 0.1325
+      },
+      "mean_pred_delta": {
+        "mean": 1.9541,
+        "std": 0.5523
+      },
+      "n_correct": {
+        "mean": 337.0,
+        "std": 37.0885
+      }
+    }
+  },
+  "results_esm3_embedding": {
+    "n_seeds": 10,
+    "test_metrics": {
+      "rmse": {
+        "mean": 7.9423,
+        "std": 0.4186
+      },
+      "mae": {
+        "mean": 5.5703,
+        "std": 0.369
+      },
+      "pearson": {
+        "mean": 0.7881,
+        "std": 0.0071
+      },
+      "spearman": {
+        "mean": 0.8265,
+        "std": 0.0084
+      },
+      "kendall": {
+        "mean": 0.6398,
+        "std": 0.0101
+      }
+    },
+    "stereo_metrics": {
+      "ordering_acc": {
+        "mean": 0.6033,
+        "std": 0.0523
+      },
+      "delta_pearson": {
+        "mean": NaN,
+        "std": NaN
+      },
+      "delta_spearman": {
+        "mean": NaN,
+        "std": NaN
+      },
+      "mean_pred_delta": {
+        "mean": NaN,
+        "std": NaN
+      },
+      "n_correct": {
+        "mean": 327.0,
+        "std": 28.3314
+      }
+    }
+  },
+  "Transformer (scratch)": {
+    "n_seeds": 10,
+    "test_metrics": {
+      "rmse": {
+        "mean": 7.2092,
+        "std": 0.3415
+      },
+      "mae": {
+        "mean": 5.0858,
+        "std": 0.2501
+      },
+      "pearson": {
+        "mean": 0.7479,
+        "std": 0.0317
+      },
+      "spearman": {
+        "mean": 0.796,
+        "std": 0.027
+      },
+      "kendall": {
+        "mean": 0.6077,
+        "std": 0.0275
+      }
+    },
+    "stereo_metrics": {
+      "ordering_acc": {
+        "mean": 0.5919,
+        "std": 0.0504
+      },
+      "delta_pearson": {
+        "mean": 0.1213,
+        "std": 0.0723
+      },
+      "delta_spearman": {
+        "mean": 0.1334,
+        "std": 0.0723
+      },
+      "mean_pred_delta": {
+        "mean": 1.3525,
+        "std": 0.7043
+      },
+      "n_correct": {
+        "mean": 320.8,
+        "std": 27.3244
+      }
+    }
+  },
+  "DeepRT-CapsNet": {
+    "n_seeds": 10,
+    "test_metrics": {
+      "rmse": {
+        "mean": 7.2027,
+        "std": 0.3998
+      },
+      "mae": {
+        "mean": 5.2255,
+        "std": 0.3051
+      },
+      "pearson": {
+        "mean": 0.7458,
+        "std": 0.0318
+      },
+      "spearman": {
+        "mean": 0.7813,
+        "std": 0.0319
+      },
+      "kendall": {
+        "mean": 0.5894,
+        "std": 0.0336
+      }
+    },
+    "stereo_metrics": {
+      "ordering_acc": {
+        "mean": 0.4406,
+        "std": 0.0732
+      },
+      "delta_pearson": {
+        "mean": -0.0702,
+        "std": 0.0713
+      },
+      "delta_spearman": {
+        "mean": -0.0694,
+        "std": 0.0762
+      },
+      "mean_pred_delta": {
+        "mean": 0.0748,
+        "std": 0.6867
+      },
+      "n_correct": {
+        "mean": 238.8,
+        "std": 39.6619
+      }
+    }
+  }
+}

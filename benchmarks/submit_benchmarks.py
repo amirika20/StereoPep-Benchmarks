@@ -62,11 +62,32 @@ BENCHMARKS: dict[str, dict] = {
         "mem":     "32G",
         "gpus":    1,
     },
-    "esm3_embedding": {
+    "gin_scratch": {
+        "script":  "benchmarks/gin_scratch.py",
+        "time":    "0-06:00",
+        "mem":     "32G",
+        "gpus":    1,
+    },
+    "esm3_sm": {
         "script":  "benchmarks/esm3_embedding.py",
         "time":    "0-12:00",
-        "mem":     "64G",   # ESM3 is large
+        "mem":     "64G",
         "gpus":    1,
+        "extra":   ["--model", "esm3_sm"],
+    },
+    "esmc_300m": {
+        "script":  "benchmarks/esm3_embedding.py",
+        "time":    "0-12:00",
+        "mem":     "64G",
+        "gpus":    1,
+        "extra":   ["--model", "esmc_300m"],
+    },
+    "esmc_600m": {
+        "script":  "benchmarks/esm3_embedding.py",
+        "time":    "0-16:00",
+        "mem":     "80G",   # larger model
+        "gpus":    1,
+        "extra":   ["--model", "esmc_600m"],
     },
 }
 
@@ -113,6 +134,7 @@ def submit_one(
             i += 1
 
     cleaned += ["--", cfg["script"], "--epochs", str(epochs)]
+    cleaned += cfg.get("extra", [])
     cleaned += extra_args
 
     print(f"\n{'─' * 60}")
