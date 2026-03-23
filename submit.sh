@@ -108,6 +108,8 @@ $SEED_LOGIC
 $CONDA_ENV/bin/python $SCRIPT $EXTRA_ARGS \$SEED_OVERRIDE
 SBATCH_EOF
 
+export HF_TOKEN=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
+
 if $DRY_RUN; then
     cat "$SBATCH_SCRIPT"
 else
