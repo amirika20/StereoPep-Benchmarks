@@ -52,6 +52,7 @@ WEIGHT_DECAY = 1e-4
 BATCH_SIZE   = 256
 MAX_EPOCHS   = 50
 PATIENCE     = 8          # overridden at runtime to 0.1 * MAX_EPOCHS
+LR_PATIENCE  = 4          # overridden at runtime to 0.05 * MAX_EPOCHS
 DEVICE       = "cuda" if torch.cuda.is_available() else "cpu"
 
 RESULTS_DIR  = Path(__file__).parent / "output"
@@ -260,7 +261,7 @@ def run_one_seed(
     model     = PeptideTransformer().to(DEVICE)
     optimizer = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, patience=3, factor=0.5, min_lr=1e-5
+        optimizer, patience=LR_PATIENCE, factor=0.5, min_lr=1e-5
     )
     criterion = nn.MSELoss()
 
@@ -327,7 +328,7 @@ def run_one_seed(
 
 
 def main() -> None:
-    global MAX_EPOCHS, PATIENCE
+    global MAX_EPOCHS, PATIENCE, LR_PATIENCE
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=0,
                         help="Training seed (default: 0)")
@@ -336,8 +337,9 @@ def main() -> None:
     args = parser.parse_args()
     seed = args.seed
 
-    MAX_EPOCHS = args.epochs
-    PATIENCE   = max(1, int(0.1 * MAX_EPOCHS))
+    MAX_EPOCHS  = args.epochs
+    PATIENCE    = max(1, int(0.10 * MAX_EPOCHS))
+    LR_PATIENCE = max(1, int(0.05 * MAX_EPOCHS))
 
     print(f"Device: {DEVICE}  |  seed={seed}  |  max_epochs={MAX_EPOCHS}  |  patience={PATIENCE}")
     t0 = time.time()
@@ -377,7 +379,7 @@ def main() -> None:
         "d_model": D_MODEL, "n_heads": N_HEADS, "n_layers": N_LAYERS,
         "ffn_mult": FFN_MULT, "dropout": DROPOUT, "max_seq_len": MAX_SEQ_LEN,
         "vocab_size": VOCAB_SIZE, "lr": LR, "weight_decay": WEIGHT_DECAY,
-        "batch_size": BATCH_SIZE, "max_epochs": MAX_EPOCHS, "patience": PATIENCE, "device": DEVICE,
+        "batch_size": BATCH_SIZE, "max_epochs": MAX_EPOCHS, "patience": PATIENCE, "lr_patience": LR_PATIENCE, "device": DEVICE,
     }
     training = {
         "epochs_run": history[-1]["epoch"],

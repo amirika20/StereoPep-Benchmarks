@@ -97,6 +97,7 @@ TRAIN_BATCH  = 32    # smaller: each batch runs a full backbone forward pass
 ENCODE_BATCH = 32    # batch size for no-grad encoding (val/test/stereo)
 MAX_EPOCHS   = 20
 PATIENCE     = 5      # overridden at runtime to 0.1 * MAX_EPOCHS
+LR_PATIENCE  = 2      # overridden at runtime to 0.05 * MAX_EPOCHS
 DEVICE       = "cuda" if torch.cuda.is_available() else "cpu"
 
 RESULTS_DIR  = Path(__file__).parent / "output"
@@ -380,7 +381,7 @@ def run_one_seed(
     optimizer = torch.optim.Adam(
         model_learnable + list(mlp.parameters()), lr=LR, weight_decay=WEIGHT_DECAY
     )
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, factor=0.5)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=LR_PATIENCE, factor=0.5, min_lr=1e-6)
     criterion = nn.MSELoss()
 
     best_val_loss  = float("inf")
@@ -455,7 +456,7 @@ def run_one_seed(
 
 
 def main() -> None:
-    global MAX_EPOCHS, PATIENCE, ds_test_peptides
+    global MAX_EPOCHS, PATIENCE, LR_PATIENCE, ds_test_peptides
 
     parser = argparse.ArgumentParser(
         description="ESM embedding benchmark (ESM3 / ESM-C families)",
@@ -479,9 +480,10 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    seed       = args.seed
-    MAX_EPOCHS = args.epochs
-    PATIENCE   = max(1, int(0.1 * MAX_EPOCHS))
+    seed        = args.seed
+    MAX_EPOCHS  = args.epochs
+    PATIENCE    = max(1, int(0.10 * MAX_EPOCHS))
+    LR_PATIENCE = max(1, int(0.05 * MAX_EPOCHS))
 
     # Resolve requested model keys
     if args.model.strip().lower() == "all":
@@ -554,6 +556,7 @@ def main() -> None:
             "train_batch":  TRAIN_BATCH,
             "max_epochs":   MAX_EPOCHS,
             "patience":     PATIENCE,
+            "lr_patience":  LR_PATIENCE,
             "device":       DEVICE,
         }
         stem = f"results_{model_key}_embedding"

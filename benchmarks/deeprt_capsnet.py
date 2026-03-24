@@ -55,6 +55,7 @@ LR            = 1e-3
 BATCH_SIZE    = 64
 MAX_EPOCHS    = 50
 PATIENCE      = 8            # overridden at runtime to 0.1 * MAX_EPOCHS
+LR_PATIENCE   = 4            # overridden at runtime to 0.05 * MAX_EPOCHS
 DEVICE        = "cuda" if torch.cuda.is_available() else "cpu"
 
 RESULTS_DIR   = Path(__file__).parent / "output"
@@ -211,7 +212,7 @@ def train_one(
 ) -> list[dict]:
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, patience=3, factor=0.5, min_lr=1e-5
+        optimizer, patience=LR_PATIENCE, factor=0.5, min_lr=1e-5
     )
     criterion = nn.MSELoss()
 
@@ -404,7 +405,7 @@ def run_one_seed(
 
 
 def main() -> None:
-    global MAX_EPOCHS, PATIENCE
+    global MAX_EPOCHS, PATIENCE, LR_PATIENCE
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=0,
                         help="Training seed (default: 0)")
@@ -413,8 +414,9 @@ def main() -> None:
     args = parser.parse_args()
     seed = args.seed
 
-    MAX_EPOCHS = args.epochs
-    PATIENCE   = max(1, int(0.1 * MAX_EPOCHS))
+    MAX_EPOCHS  = args.epochs
+    PATIENCE    = max(1, int(0.10 * MAX_EPOCHS))
+    LR_PATIENCE = max(1, int(0.05 * MAX_EPOCHS))
 
     print(f"Device: {DEVICE}  |  seed={seed}  |  max_epochs={MAX_EPOCHS}  |  patience={PATIENCE}")
     t0 = time.time()
@@ -456,7 +458,7 @@ def main() -> None:
         "kernel_sizes": KERNEL_SIZES, "emb_size": EMB_SIZE, "conv_filters": CONV_FILTERS,
         "num_routing": NUM_ROUTING, "max_len": MAX_LEN, "vocab_size": VOCAB_SIZE,
         "lr": LR, "batch_size": BATCH_SIZE,
-        "max_epochs": MAX_EPOCHS, "patience": PATIENCE, "device": DEVICE,
+        "max_epochs": MAX_EPOCHS, "patience": PATIENCE, "lr_patience": LR_PATIENCE, "device": DEVICE,
         "y_min": y_min, "y_max": y_max,
     }
     training = {
