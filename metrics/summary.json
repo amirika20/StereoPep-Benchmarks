@@ -1,95 +1,95 @@
 {
+  "results_gin_scratch": {
+    "n_seeds": 10,
+    "test_metrics": {
+      "rmse": {
+        "mean": 6.9096,
+        "std": 0.3745
+      },
+      "mae": {
+        "mean": 4.6523,
+        "std": 0.2828
+      },
+      "pearson": {
+        "mean": 0.7738,
+        "std": 0.0225
+      },
+      "spearman": {
+        "mean": 0.8243,
+        "std": 0.0237
+      },
+      "kendall": {
+        "mean": 0.6457,
+        "std": 0.026
+      }
+    },
+    "stereo_metrics": {
+      "ordering_acc": {
+        "mean": 0.6694,
+        "std": 0.0207
+      },
+      "delta_pearson": {
+        "mean": 0.1005,
+        "std": 0.0987
+      },
+      "delta_spearman": {
+        "mean": 0.1545,
+        "std": 0.1065
+      },
+      "mean_pred_delta": {
+        "mean": 2.1682,
+        "std": 0.6242
+      },
+      "n_correct": {
+        "mean": 362.8,
+        "std": 11.2131
+      }
+    }
+  },
   "Pretrained GIN": {
     "n_seeds": 10,
     "test_metrics": {
       "rmse": {
-        "mean": 7.8373,
-        "std": 0.1662
+        "mean": 7.6562,
+        "std": 0.2087
       },
       "mae": {
-        "mean": 5.3696,
-        "std": 0.1174
+        "mean": 5.2201,
+        "std": 0.1456
       },
       "pearson": {
-        "mean": 0.7022,
-        "std": 0.0155
+        "mean": 0.7206,
+        "std": 0.016
       },
       "spearman": {
-        "mean": 0.7525,
-        "std": 0.0169
+        "mean": 0.7774,
+        "std": 0.023
       },
       "kendall": {
-        "mean": 0.5673,
-        "std": 0.0151
+        "mean": 0.5908,
+        "std": 0.0212
       }
     },
     "stereo_metrics": {
       "ordering_acc": {
-        "mean": 0.6443,
-        "std": 0.0146
+        "mean": 0.6491,
+        "std": 0.0099
       },
       "delta_pearson": {
-        "mean": 0.1406,
-        "std": 0.0684
+        "mean": 0.147,
+        "std": 0.0747
       },
       "delta_spearman": {
-        "mean": 0.1724,
-        "std": 0.0656
+        "mean": 0.1721,
+        "std": 0.0757
       },
       "mean_pred_delta": {
-        "mean": 1.8057,
-        "std": 0.1852
+        "mean": 1.8329,
+        "std": 0.2444
       },
       "n_correct": {
-        "mean": 349.2,
-        "std": 7.8994
-      }
-    }
-  },
-  "Morgan FP MLP": {
-    "n_seeds": 10,
-    "test_metrics": {
-      "rmse": {
-        "mean": 9.2713,
-        "std": 0.1948
-      },
-      "mae": {
-        "mean": 6.7807,
-        "std": 0.1772
-      },
-      "pearson": {
-        "mean": 0.5177,
-        "std": 0.0173
-      },
-      "spearman": {
-        "mean": 0.5512,
-        "std": 0.0239
-      },
-      "kendall": {
-        "mean": 0.3889,
-        "std": 0.0179
-      }
-    },
-    "stereo_metrics": {
-      "ordering_acc": {
-        "mean": 0.6339,
-        "std": 0.022
-      },
-      "delta_pearson": {
-        "mean": -0.051,
-        "std": 0.0508
-      },
-      "delta_spearman": {
-        "mean": -0.0352,
-        "std": 0.0486
-      },
-      "mean_pred_delta": {
-        "mean": 1.1836,
-        "std": 0.2625
-      },
-      "n_correct": {
-        "mean": 343.6,
-        "std": 11.9182
+        "mean": 351.8,
+        "std": 5.3707
       }
     }
   },
@@ -97,46 +97,140 @@
     "n_seeds": 10,
     "test_metrics": {
       "rmse": {
-        "mean": 6.7308,
-        "std": 0.2395
+        "mean": 6.6084,
+        "std": 0.2145
       },
       "mae": {
-        "mean": 4.6702,
-        "std": 0.1865
+        "mean": 4.6026,
+        "std": 0.1834
       },
       "pearson": {
-        "mean": 0.801,
-        "std": 0.0131
+        "mean": 0.8014,
+        "std": 0.0119
       },
       "spearman": {
-        "mean": 0.8445,
-        "std": 0.016
+        "mean": 0.8486,
+        "std": 0.0106
       },
       "kendall": {
-        "mean": 0.6659,
-        "std": 0.0181
+        "mean": 0.6697,
+        "std": 0.0134
       }
     },
     "stereo_metrics": {
       "ordering_acc": {
-        "mean": 0.6218,
-        "std": 0.0684
+        "mean": 0.6328,
+        "std": 0.023
       },
       "delta_pearson": {
-        "mean": 0.0344,
-        "std": 0.1179
+        "mean": -0.0293,
+        "std": 0.0995
       },
       "delta_spearman": {
-        "mean": 0.0664,
-        "std": 0.1325
+        "mean": 0.0136,
+        "std": 0.1018
       },
       "mean_pred_delta": {
-        "mean": 1.9541,
-        "std": 0.5523
+        "mean": 1.974,
+        "std": 0.5843
       },
       "n_correct": {
-        "mean": 337.0,
-        "std": 37.0885
+        "mean": 343.0,
+        "std": 12.4454
+      }
+    }
+  },
+  "Morgan FP MLP": {
+    "n_seeds": 10,
+    "test_metrics": {
+      "rmse": {
+        "mean": 9.1468,
+        "std": 0.287
+      },
+      "mae": {
+        "mean": 6.7025,
+        "std": 0.2002
+      },
+      "pearson": {
+        "mean": 0.5295,
+        "std": 0.0294
+      },
+      "spearman": {
+        "mean": 0.5599,
+        "std": 0.0312
+      },
+      "kendall": {
+        "mean": 0.3958,
+        "std": 0.023
+      }
+    },
+    "stereo_metrics": {
+      "ordering_acc": {
+        "mean": 0.6151,
+        "std": 0.0298
+      },
+      "delta_pearson": {
+        "mean": -0.063,
+        "std": 0.0543
+      },
+      "delta_spearman": {
+        "mean": -0.0456,
+        "std": 0.0569
+      },
+      "mean_pred_delta": {
+        "mean": 1.2797,
+        "std": 0.345
+      },
+      "n_correct": {
+        "mean": 333.4,
+        "std": 16.1466
+      }
+    }
+  },
+  "results_esm3_sm_embedding": {
+    "n_seeds": 7,
+    "test_metrics": {
+      "rmse": {
+        "mean": 7.4568,
+        "std": 0.2864
+      },
+      "mae": {
+        "mean": 5.2042,
+        "std": 0.1795
+      },
+      "pearson": {
+        "mean": 0.7839,
+        "std": 0.0114
+      },
+      "spearman": {
+        "mean": 0.8222,
+        "std": 0.0114
+      },
+      "kendall": {
+        "mean": 0.6348,
+        "std": 0.0143
+      }
+    },
+    "stereo_metrics": {
+      "ordering_acc": {
+        "mean": 0.606,
+        "std": 0.0237
+      },
+      "delta_pearson": {
+        "mean": NaN,
+        "std": NaN
+      },
+      "delta_spearman": {
+        "mean": NaN,
+        "std": NaN
+      },
+      "mean_pred_delta": {
+        "mean": NaN,
+        "std": NaN
+      },
+      "n_correct": {
+        "mean": 328.4286,
+        "std": 12.8304
       }
     }
   },
@@ -187,50 +281,144 @@
       }
     }
   },
-  "Transformer (scratch)": {
+  "results_esmc_300m_embedding": {
     "n_seeds": 10,
     "test_metrics": {
       "rmse": {
-        "mean": 7.2092,
-        "std": 0.3415
+        "mean": 7.9888,
+        "std": 0.2013
       },
       "mae": {
-        "mean": 5.0858,
-        "std": 0.2501
+        "mean": 5.5388,
+        "std": 0.1791
       },
       "pearson": {
-        "mean": 0.7479,
-        "std": 0.0317
+        "mean": 0.7729,
+        "std": 0.0102
       },
       "spearman": {
-        "mean": 0.796,
-        "std": 0.027
+        "mean": 0.8277,
+        "std": 0.0088
       },
       "kendall": {
-        "mean": 0.6077,
-        "std": 0.0275
+        "mean": 0.6434,
+        "std": 0.0098
       }
     },
     "stereo_metrics": {
       "ordering_acc": {
-        "mean": 0.5919,
-        "std": 0.0504
+        "mean": 0.5923,
+        "std": 0.0235
       },
       "delta_pearson": {
-        "mean": 0.1213,
-        "std": 0.0723
+        "mean": NaN,
+        "std": NaN
       },
       "delta_spearman": {
-        "mean": 0.1334,
-        "std": 0.0723
+        "mean": NaN,
+        "std": NaN
       },
       "mean_pred_delta": {
-        "mean": 1.3525,
-        "std": 0.7043
+        "mean": NaN,
+        "std": NaN
       },
       "n_correct": {
-        "mean": 320.8,
-        "std": 27.3244
+        "mean": 321.0,
+        "std": 12.7366
+      }
+    }
+  },
+  "results_esmc_600m_embedding": {
+    "n_seeds": 10,
+    "test_metrics": {
+      "rmse": {
+        "mean": 8.3528,
+        "std": 0.3197
+      },
+      "mae": {
+        "mean": 5.9117,
+        "std": 0.2937
+      },
+      "pearson": {
+        "mean": 0.7615,
+        "std": 0.0128
+      },
+      "spearman": {
+        "mean": 0.8247,
+        "std": 0.0079
+      },
+      "kendall": {
+        "mean": 0.6404,
+        "std": 0.0091
+      }
+    },
+    "stereo_metrics": {
+      "ordering_acc": {
+        "mean": 0.5378,
+        "std": 0.0278
+      },
+      "delta_pearson": {
+        "mean": NaN,
+        "std": NaN
+      },
+      "delta_spearman": {
+        "mean": NaN,
+        "std": NaN
+      },
+      "mean_pred_delta": {
+        "mean": NaN,
+        "std": NaN
+      },
+      "n_correct": {
+        "mean": 291.5,
+        "std": 15.0794
+      }
+    }
+  },
+  "Transformer (scratch)": {
+    "n_seeds": 10,
+    "test_metrics": {
+      "rmse": {
+        "mean": 7.3402,
+        "std": 0.4759
+      },
+      "mae": {
+        "mean": 5.1596,
+        "std": 0.3723
+      },
+      "pearson": {
+        "mean": 0.7466,
+        "std": 0.0338
+      },
+      "spearman": {
+        "mean": 0.7903,
+        "std": 0.0307
+      },
+      "kendall": {
+        "mean": 0.6033,
+        "std": 0.0326
+      }
+    },
+    "stereo_metrics": {
+      "ordering_acc": {
+        "mean": 0.5354,
+        "std": 0.078
+      },
+      "delta_pearson": {
+        "mean": -0.0034,
+        "std": 0.112
+      },
+      "delta_spearman": {
+        "mean": -0.0014,
+        "std": 0.1198
+      },
+      "mean_pred_delta": {
+        "mean": 0.7877,
+        "std": 0.7418
+      },
+      "n_correct": {
+        "mean": 290.2,
+        "std": 42.2606
       }
     }
   },
@@ -238,46 +426,46 @@
     "n_seeds": 10,
     "test_metrics": {
       "rmse": {
-        "mean": 7.2027,
-        "std": 0.3998
+        "mean": 7.197,
+        "std": 0.3486
       },
       "mae": {
-        "mean": 5.2255,
-        "std": 0.3051
+        "mean": 5.2084,
+        "std": 0.3007
       },
       "pearson": {
-        "mean": 0.7458,
-        "std": 0.0318
+        "mean": 0.752,
+        "std": 0.0328
       },
       "spearman": {
-        "mean": 0.7813,
-        "std": 0.0319
+        "mean": 0.7877,
+        "std": 0.035
       },
       "kendall": {
-        "mean": 0.5894,
-        "std": 0.0336
+        "mean": 0.5966,
+        "std": 0.0358
       }
     },
     "stereo_metrics": {
       "ordering_acc": {
-        "mean": 0.4406,
-        "std": 0.0732
+        "mean": 0.433,
+        "std": 0.0802
       },
       "delta_pearson": {
-        "mean": -0.0702,
-        "std": 0.0713
+        "mean": -0.0848,
+        "std": 0.0733
       },
       "delta_spearman": {
-        "mean": -0.0694,
-        "std": 0.0762
+        "mean": -0.0823,
+        "std": 0.0747
       },
       "mean_pred_delta": {
-        "mean": 0.0748,
-        "std": 0.6867
+        "mean": -0.2198,
+        "std": 0.8014
       },
       "n_correct": {
-        "mean": 238.8,
-        "std": 39.6619
+        "mean": 234.7,
+        "std": 43.4589
       }
     }
   }
