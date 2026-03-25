@@ -301,8 +301,10 @@ def stereo_ordering_accuracy(mlp: MLP, model, tok, stereo_ds) -> dict:
         pred_f = mlp(torch.tensor(emb_f).to(DEVICE)).cpu().numpy()
         pred_F = mlp(torch.tensor(emb_F).to(DEVICE)).cpu().numpy()
 
-    true_order = np.sign(B_f - B_F)
-    pred_order = np.sign(pred_f - pred_F)
+    true_delta = B_f - B_F
+    pred_delta = pred_f - pred_F
+    true_order = np.sign(true_delta)
+    pred_order = np.sign(pred_delta)
 
     tied_true = (true_order == 0).sum()
     tied_pred = (pred_order == 0).sum()
@@ -310,6 +312,8 @@ def stereo_ordering_accuracy(mlp: MLP, model, tok, stereo_ds) -> dict:
     correct   = (true_order[mask] == pred_order[mask]).sum()
     n_eval    = mask.sum()
     acc       = correct / n_eval if n_eval > 0 else float("nan")
+    pr, _     = stats.pearsonr(true_delta, pred_delta)
+    sr, _     = stats.spearmanr(true_delta, pred_delta)
 
     return dict(
         n_pairs=len(seqs_f),
@@ -318,7 +322,59 @@ def stereo_ordering_accuracy(mlp: MLP, model, tok, stereo_ds) -> dict:
         n_evaluated=int(n_eval),
         n_correct=int(correct),
         ordering_acc=float(acc),
+        delta_pearson=float(pr),
+        delta_spearman=float(sr),
+        mean_true_delta=float(true_delta.mean()),
+        mean_pred_delta=float(pred_delta.mean()),
     )
+
+
+def pair_delta_metrics(true_delta: np.ndarray, pred_delta: np.ndarray) -> dict:
+    """Delta prediction quality metrics for any matched pair type."""
+    rmse   = float(np.sqrt(mean_squared_error(true_delta, pred_delta)))
+    mae    = float(mean_absolute_error(true_delta, pred_delta))
+    pr, _  = stats.pearsonr(true_delta, pred_delta)
+    sr, _  = stats.spearmanr(true_delta, pred_delta)
+    mask   = np.sign(true_delta) != 0
+    n_eval = int(mask.sum())
+    n_corr = int((np.sign(true_delta[mask]) == np.sign(pred_delta[mask])).sum())
+    return dict(
+        n_pairs=len(true_delta),
+        delta_pearson=float(pr),
+        delta_spearman=float(sr),
+        delta_rmse=rmse,
+        delta_mae=mae,
+        ordering_acc=float(n_corr / n_eval) if n_eval > 0 else float("nan"),
+        n_correct=n_corr,
+        n_evaluated=n_eval,
+        mean_true_delta=float(true_delta.mean()),
+        mean_pred_delta=float(pred_delta.mean()),
+    )
+
+
+def eval_pair_metrics(
+    mlp: MLP,
+    model,
+    tok,
+    ds,
+    seq_col_a: str,
+    seq_col_b: str,
+) -> dict:
+    """Evaluate predicted delta for any pair split (tag_pairs / substitution_pairs)."""
+    seqs_a  = list(ds[seq_col_a])
+    seqs_b  = list(ds[seq_col_b])
+    delta_B = np.array(ds["delta_B"], dtype=np.float64)
+
+    emb_a = embed_sequences(model, tok, seqs_a, desc=f"Pairs {seq_col_a}")
+    emb_b = embed_sequences(model, tok, seqs_b, desc=f"Pairs {seq_col_b}")
+
+    mlp.eval()
+    with torch.no_grad():
+        pred_a = mlp(torch.tensor(emb_a).to(DEVICE)).cpu().numpy()
+        pred_b = mlp(torch.tensor(emb_b).to(DEVICE)).cpu().numpy()
+
+    pred_delta = pred_a - pred_b
+    return pair_delta_metrics(delta_B, pred_delta)
 
 
 # ── reporting ─────────────────────────────────────────────────────────────────
@@ -335,6 +391,8 @@ def save_results(
     seed: int,
     test_metrics: dict,
     stereo_metrics: dict,
+    tag_pair_metrics: dict,
+    substitution_pair_metrics: dict,
     training: dict,
     config: dict,
     output_dir: Path,
@@ -348,6 +406,8 @@ def save_results(
         "training": training,
         "test_metrics": test_metrics,
         "stereo_metrics": stereo_metrics,
+        "tag_pair_metrics": tag_pair_metrics,
+        "substitution_pair_metrics": substitution_pair_metrics,
     }
     out = output_dir / f"{stem}_seed{seed}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -367,7 +427,9 @@ def run_one_seed(
     val_loader,
     y_test: np.ndarray,
     stereo,
-) -> tuple[dict, dict, dict]:
+    tag_pairs,
+    sub_pairs,
+) -> tuple[dict, dict, dict, dict, dict]:
     torch.manual_seed(seed)
     np.random.seed(seed)
 
@@ -451,8 +513,13 @@ def run_one_seed(
     print(f"  Ordering accuracy: {stereo_metrics['ordering_acc']:.4f}  "
           f"({stereo_metrics['n_correct']}/{stereo_metrics['n_evaluated']})")
 
+    tag_metrics = eval_pair_metrics(mlp, model, tok, tag_pairs, "Sequence_tag", "Sequence_notag")
+    print(f"  Tag-pair delta Pearson: {tag_metrics['delta_pearson']:+.4f}")
+    sub_metrics = eval_pair_metrics(mlp, model, tok, sub_pairs, "Sequence_1", "Sequence_2")
+    print(f"  Substitution-pair delta Pearson: {sub_metrics['delta_pearson']:+.4f}")
+
     training_summary = {"epochs_run": epochs_run, "best_val_loss": best_val_loss}
-    return test_metrics, stereo_metrics, training_summary
+    return test_metrics, stereo_metrics, tag_metrics, sub_metrics, training_summary
 
 
 def main() -> None:
@@ -502,8 +569,10 @@ def main() -> None:
 
     # Load dataset once; share across all model runs
     print("\n[data] Loading peptag dataset …")
-    ds     = hf_load_dataset(HF_REPO, "peptag")
-    stereo = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
+    ds        = hf_load_dataset(HF_REPO, "peptag")
+    stereo    = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
+    tag_pairs = hf_load_dataset(HF_REPO, "tag_pairs")["tag_pairs"]
+    sub_pairs = hf_load_dataset(HF_REPO, "substitution_pairs")["substitution_pairs"]
     ds_test_peptides = ds["test"]["Peptide"]
 
     y_train = np.array(ds["train"]["B"], dtype=np.float32)
@@ -536,9 +605,9 @@ def main() -> None:
         )
 
         print(f"\n── Seed {seed} ──")
-        test_metrics, stereo_metrics, training_summary = run_one_seed(
+        test_metrics, stereo_metrics, tag_metrics, sub_metrics, training_summary = run_one_seed(
             seed, model, tok, f_emb_init, model_learnable,
-            train_loader, val_loader, y_test, stereo,
+            train_loader, val_loader, y_test, stereo, tag_pairs, sub_pairs,
         )
 
         elapsed = time.time() - t0
@@ -560,8 +629,8 @@ def main() -> None:
             "device":       DEVICE,
         }
         stem = f"results_{model_key}_embedding"
-        save_results(seed, test_metrics, stereo_metrics, training_summary, config,
-                     RESULTS_DIR, stem)
+        save_results(seed, test_metrics, stereo_metrics, tag_metrics, sub_metrics,
+                     training_summary, config, RESULTS_DIR, stem)
 
         # Free GPU memory before loading the next model
         del model, tok, model_learnable, f_emb_init, train_loader, val_loader

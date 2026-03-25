@@ -75,17 +75,30 @@ def load_results(output_dir: str) -> dict[str, list[dict]]:
 # ---------------------------------------------------------------------------
 METRICS_FLAT = {
     # key in flat record → (section, field)
-    "rmse":           ("test_metrics",   "rmse"),
-    "mae":            ("test_metrics",   "mae"),
-    "pearson":        ("test_metrics",   "pearson"),
-    "spearman":       ("test_metrics",   "spearman"),
-    "kendall":        ("test_metrics",   "kendall"),
-    "ordering_acc":   ("stereo_metrics", "ordering_acc"),
-    "delta_pearson":  ("stereo_metrics", "delta_pearson"),
-    "delta_spearman": ("stereo_metrics", "delta_spearman"),
-    "mean_pred_delta":("stereo_metrics", "mean_pred_delta"),
-    "n_correct":      ("stereo_metrics", "n_correct"),
-    "n_pairs":        ("stereo_metrics", "n_pairs"),
+    "rmse":               ("test_metrics",             "rmse"),
+    "mae":                ("test_metrics",             "mae"),
+    "pearson":            ("test_metrics",             "pearson"),
+    "spearman":           ("test_metrics",             "spearman"),
+    "kendall":            ("test_metrics",             "kendall"),
+    # stereo pairs (D-Phe vs L-Phe)
+    "ordering_acc":       ("stereo_metrics",           "ordering_acc"),
+    "delta_pearson":      ("stereo_metrics",           "delta_pearson"),
+    "delta_spearman":     ("stereo_metrics",           "delta_spearman"),
+    "mean_pred_delta":    ("stereo_metrics",           "mean_pred_delta"),
+    "n_correct":          ("stereo_metrics",           "n_correct"),
+    "n_pairs":            ("stereo_metrics",           "n_pairs"),
+    # tag pairs (with F/f tag vs without)
+    "tag_delta_pearson":  ("tag_pair_metrics",         "delta_pearson"),
+    "tag_delta_spearman": ("tag_pair_metrics",         "delta_spearman"),
+    "tag_delta_rmse":     ("tag_pair_metrics",         "delta_rmse"),
+    "tag_delta_mae":      ("tag_pair_metrics",         "delta_mae"),
+    "tag_ordering_acc":   ("tag_pair_metrics",         "ordering_acc"),
+    # substitution pairs (differ in one position)
+    "sub_delta_pearson":  ("substitution_pair_metrics","delta_pearson"),
+    "sub_delta_spearman": ("substitution_pair_metrics","delta_spearman"),
+    "sub_delta_rmse":     ("substitution_pair_metrics","delta_rmse"),
+    "sub_delta_mae":      ("substitution_pair_metrics","delta_mae"),
+    "sub_ordering_acc":   ("substitution_pair_metrics","ordering_acc"),
 }
 
 
@@ -112,8 +125,9 @@ def aggregate(grouped: dict[str, list[dict]]) -> pd.DataFrame:
         rows.append(row)
 
     df = pd.DataFrame(rows)
-    # Sort by ordering accuracy (highest first)
-    df = df.sort_values("ordering_acc_mean", ascending=False).reset_index(drop=True)
+    # Sort by ordering accuracy (highest first); fall back if column absent
+    sort_col = "ordering_acc_mean" if "ordering_acc_mean" in df.columns else df.columns[2]
+    df = df.sort_values(sort_col, ascending=False).reset_index(drop=True)
     return df
 
 
@@ -130,19 +144,25 @@ def save_summary(df: pd.DataFrame):
     summary = {}
     for _, row in df.iterrows():
         model = row["model"]
+
+        def _section(keys):
+            out = {}
+            for m in keys:
+                mean_key = f"{m}_mean"
+                if mean_key in row and not np.isnan(row[mean_key]):
+                    out[m] = {"mean": round(float(row[f"{m}_mean"]), 4),
+                               "std":  round(float(row[f"{m}_std"]),  4)}
+            return out
+
         summary[model] = {
             "n_seeds": int(row["n_seeds"]),
-            "test_metrics": {
-                m: {"mean": round(row[f"{m}_mean"], 4),
-                    "std":  round(row[f"{m}_std"],  4)}
-                for m in ["rmse", "mae", "pearson", "spearman", "kendall"]
-            },
-            "stereo_metrics": {
-                m: {"mean": round(row[f"{m}_mean"], 4),
-                    "std":  round(row[f"{m}_std"],  4)}
-                for m in ["ordering_acc", "delta_pearson", "delta_spearman",
-                          "mean_pred_delta", "n_correct"]
-            },
+            "test_metrics": _section(["rmse", "mae", "pearson", "spearman", "kendall"]),
+            "stereo_metrics": _section(["ordering_acc", "delta_pearson", "delta_spearman",
+                                        "mean_pred_delta", "n_correct"]),
+            "tag_pair_metrics": _section(["tag_delta_pearson", "tag_delta_spearman",
+                                          "tag_delta_rmse", "tag_delta_mae", "tag_ordering_acc"]),
+            "substitution_pair_metrics": _section(["sub_delta_pearson", "sub_delta_spearman",
+                                                   "sub_delta_rmse", "sub_delta_mae", "sub_ordering_acc"]),
         }
 
     with open(json_path, "w") as f:
@@ -167,6 +187,9 @@ def _bar_plot(
 ):
     mean_col = f"{metric}_mean"
     std_col  = f"{metric}_std"
+    if mean_col not in df.columns or df[mean_col].isna().all():
+        print(f"  Skipped (no data): {filename}")
+        return
 
     models = df["model"].tolist()
     means  = df[mean_col].tolist()
@@ -231,6 +254,12 @@ def _multi_metric_bar(
     ylim: tuple | None = None,
 ):
     """Grouped bar chart comparing multiple metrics side-by-side across models."""
+    # Drop metrics whose column is entirely absent or NaN
+    metrics = [m for m in metrics if f"{m}_mean" in df.columns and not df[f"{m}_mean"].isna().all()]
+    labels  = labels[:len(metrics)]
+    if not metrics:
+        print(f"  Skipped (no data): {filename}")
+        return
     models  = df["model"].tolist()
     n_models  = len(models)
     n_metrics = len(metrics)
@@ -323,13 +352,18 @@ def _strip_plot(grouped: dict[str, list[dict]], metric_section: str, metric_fiel
 # 5. Radar / spider chart for a holistic view
 # ---------------------------------------------------------------------------
 def _radar_chart(df: pd.DataFrame, filename: str):
-    """Normalised radar chart across 6 metrics (higher always = better)."""
+    """Normalised radar chart across 8 metrics (higher always = better)."""
     metric_cols  = ["ordering_acc_mean", "pearson_mean", "spearman_mean",
-                    "kendall_mean", "delta_pearson_mean", "delta_spearman_mean"]
-    metric_labels = ["Ordering\nAcc", "Pearson", "Spearman",
-                     "Kendall", "Δ Pearson", "Δ Spearman"]
+                    "kendall_mean", "delta_pearson_mean", "delta_spearman_mean",
+                    "tag_delta_pearson_mean", "sub_delta_pearson_mean"]
+    metric_labels = ["Ordering\nAcc", "Pearson", "Spearman", "Kendall",
+                     "Stereo\nΔ Pearson", "Stereo\nΔ Spearman",
+                     "Tag\nΔ Pearson", "Sub\nΔ Pearson"]
+    # Keep only columns that exist (older result files may lack the new ones)
+    available = [(c, l) for c, l in zip(metric_cols, metric_labels) if c in df.columns]
+    metric_cols, metric_labels = zip(*available) if available else ([], [])
 
-    values = df[metric_cols].values.astype(float)
+    values = df[list(metric_cols)].values.astype(float)
 
     # Shift negative values so minimum per column = 0 → max = 1
     col_min = values.min(axis=0)
@@ -368,13 +402,15 @@ def _radar_chart(df: pd.DataFrame, filename: str):
 # ---------------------------------------------------------------------------
 # 6. Print a pretty console table
 # ---------------------------------------------------------------------------
+def _fmt(df: pd.DataFrame, row, col: str, w: int = 8, d: int = 4) -> str:
+    """Format mean ± std if columns exist, else '  n/a  '."""
+    mc, sc = f"{col}_mean", f"{col}_std"
+    if mc not in df.columns or pd.isna(row.get(mc)):
+        return f"{'n/a':>{w+7}}"
+    return f"{row[mc]:>{w}.{d}f} {row[sc]:>6.{d}f}"
+
+
 def print_table(df: pd.DataFrame):
-    cols = ["model",
-            "ordering_acc_mean", "ordering_acc_std",
-            "pearson_mean",       "pearson_std",
-            "spearman_mean",      "spearman_std",
-            "rmse_mean",          "rmse_std",
-            "mae_mean",           "mae_std"]
     print("\n" + "=" * 90)
     print(f"{'Model':<25} {'Ord.Acc':>9} {'±':>6}  {'Pearson':>9} {'±':>6}  "
           f"{'Spearman':>9} {'±':>6}  {'RMSE':>8} {'±':>6}  {'MAE':>8} {'±':>6}")
@@ -382,13 +418,33 @@ def print_table(df: pd.DataFrame):
     for _, row in df.iterrows():
         print(
             f"{row['model']:<25} "
-            f"{row['ordering_acc_mean']:>9.4f} {row['ordering_acc_std']:>6.4f}  "
-            f"{row['pearson_mean']:>9.4f} {row['pearson_std']:>6.4f}  "
-            f"{row['spearman_mean']:>9.4f} {row['spearman_std']:>6.4f}  "
-            f"{row['rmse_mean']:>8.3f} {row['rmse_std']:>6.3f}  "
-            f"{row['mae_mean']:>8.3f} {row['mae_std']:>6.3f}"
+            f"{_fmt(df, row, 'ordering_acc')}  "
+            f"{_fmt(df, row, 'pearson')}  "
+            f"{_fmt(df, row, 'spearman')}  "
+            f"{_fmt(df, row, 'rmse', d=3)}  "
+            f"{_fmt(df, row, 'mae', d=3)}"
         )
     print("=" * 90)
+
+
+def print_pair_table(df: pd.DataFrame):
+    """Console table for tag-pair and substitution-pair delta metrics."""
+    print("\n" + "=" * 110)
+    print(f"{'Model':<25} "
+          f"{'Tag ΔPearson':>13} {'±':>6}  {'Tag ΔSpear':>11} {'±':>6}  {'Tag OrdAcc':>11} {'±':>6}  "
+          f"{'Sub ΔPearson':>13} {'±':>6}  {'Sub ΔSpear':>11} {'±':>6}  {'Sub OrdAcc':>11} {'±':>6}")
+    print("=" * 110)
+    for _, row in df.iterrows():
+        print(
+            f"{row['model']:<25} "
+            f"{_fmt(df, row, 'tag_delta_pearson', w=13)}  "
+            f"{_fmt(df, row, 'tag_delta_spearman', w=11)}  "
+            f"{_fmt(df, row, 'tag_ordering_acc', w=11)}  "
+            f"{_fmt(df, row, 'sub_delta_pearson', w=13)}  "
+            f"{_fmt(df, row, 'sub_delta_spearman', w=11)}  "
+            f"{_fmt(df, row, 'sub_ordering_acc', w=11)}"
+        )
+    print("=" * 110)
 
 
 # ---------------------------------------------------------------------------
@@ -402,8 +458,9 @@ def main():
     # Save summary files
     save_summary(df)
 
-    # Console table
+    # Console tables
     print_table(df)
+    print_pair_table(df)
 
     # -----------------------------------------------------------------------
     # Figures
@@ -484,9 +541,65 @@ def main():
         df,
         metrics=["ordering_acc", "delta_pearson", "delta_spearman"],
         labels=["Ordering Acc", "ΔRT Pearson", "ΔRT Spearman"],
-        title="Stereoisomer Discrimination Metrics",
+        title="Stereoisomer Discrimination Metrics (D/L-Phe pairs)",
         ylabel="Score",
         filename="stereo_metrics_grouped.png",
+    )
+
+    # --- Tag-pair metrics ---
+    _bar_plot(
+        df, "tag_delta_pearson",
+        title="Tag-Pair ΔRT Pearson (tagged vs untagged peptides)",
+        ylabel="Pearson r  (predicted Δ vs true Δ)",
+        filename="tag_pair_delta_pearson.png",
+        higher_is_better=True,
+    )
+
+    _multi_metric_bar(
+        df,
+        metrics=["tag_ordering_acc", "tag_delta_pearson", "tag_delta_spearman"],
+        labels=["Ordering Acc", "ΔRT Pearson", "ΔRT Spearman"],
+        title="Tag-Pair Discrimination Metrics (tagged vs untagged)",
+        ylabel="Score",
+        filename="tag_pair_metrics_grouped.png",
+    )
+
+    # --- Substitution-pair metrics ---
+    _bar_plot(
+        df, "sub_delta_pearson",
+        title="Substitution-Pair ΔRT Pearson (single-position substitutions)",
+        ylabel="Pearson r  (predicted Δ vs true Δ)",
+        filename="sub_pair_delta_pearson.png",
+        higher_is_better=True,
+    )
+
+    _multi_metric_bar(
+        df,
+        metrics=["sub_ordering_acc", "sub_delta_pearson", "sub_delta_spearman"],
+        labels=["Ordering Acc", "ΔRT Pearson", "ΔRT Spearman"],
+        title="Substitution-Pair Discrimination Metrics (single-position substitutions)",
+        ylabel="Score",
+        filename="sub_pair_metrics_grouped.png",
+    )
+
+    # --- Cross-pair-type Δ Pearson comparison ---
+    _multi_metric_bar(
+        df,
+        metrics=["delta_pearson", "tag_delta_pearson", "sub_delta_pearson"],
+        labels=["Stereo (D/L-Phe)", "Tag (tagged/untagged)", "Substitution (1-pos)"],
+        title="ΔRT Pearson Across All Pair Types",
+        ylabel="Pearson r  (predicted Δ vs true Δ)",
+        filename="delta_pearson_all_pairs.png",
+    )
+
+    # --- Cross-pair-type ordering accuracy comparison ---
+    _multi_metric_bar(
+        df,
+        metrics=["ordering_acc", "tag_ordering_acc", "sub_ordering_acc"],
+        labels=["Stereo (D/L-Phe)", "Tag (tagged/untagged)", "Substitution (1-pos)"],
+        title="Ordering Accuracy Across All Pair Types",
+        ylabel="Ordering Accuracy",
+        filename="ordering_acc_all_pairs.png",
     )
 
     # --- Radar chart ---
