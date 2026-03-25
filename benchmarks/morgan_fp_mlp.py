@@ -343,7 +343,7 @@ def run_one_seed(seed: int, X_train, X_val, X_test, y_train, y_val, y_test, sp,
     print(f"  Ordering accuracy: {stereo_metrics['ordering_acc']:.4f}"
           f"  ({stereo_metrics['n_correct']}/{stereo_metrics['n_pairs']})")
 
-    tag_metrics = eval_pair_metrics(model, tag_pairs, "SMILES_tag", "SMILES_notag")
+    tag_metrics = eval_pair_metrics(model, tag_pairs, "SMILES_tagged", "SMILES_untagged")
     print(f"  Tag-pair delta Pearson: {tag_metrics['delta_pearson']:+.4f}")
     sub_metrics = eval_pair_metrics(model, sub_pairs, "SMILES_1", "SMILES_2")
     print(f"  Substitution-pair delta Pearson: {sub_metrics['delta_pearson']:+.4f}")
