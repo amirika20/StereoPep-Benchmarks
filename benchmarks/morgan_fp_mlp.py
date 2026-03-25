@@ -187,6 +187,29 @@ def regression_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
     return {"rmse": rmse, "mae": mae, "pearson": pr, "spearman": sr, "kendall": kr}
 
 
+def pair_delta_metrics(true_delta: np.ndarray, pred_delta: np.ndarray) -> dict:
+    """Delta prediction quality metrics for any matched pair type."""
+    rmse   = float(np.sqrt(mean_squared_error(true_delta, pred_delta)))
+    mae    = float(mean_absolute_error(true_delta, pred_delta))
+    pr, _  = stats.pearsonr(true_delta, pred_delta)
+    sr, _  = stats.spearmanr(true_delta, pred_delta)
+    mask   = np.sign(true_delta) != 0
+    n_eval = int(mask.sum())
+    n_corr = int((np.sign(true_delta[mask]) == np.sign(pred_delta[mask])).sum())
+    return dict(
+        n_pairs=len(true_delta),
+        delta_pearson=float(pr),
+        delta_spearman=float(sr),
+        delta_rmse=rmse,
+        delta_mae=mae,
+        ordering_acc=float(n_corr / n_eval) if n_eval > 0 else float("nan"),
+        n_correct=n_corr,
+        n_evaluated=n_eval,
+        mean_true_delta=float(true_delta.mean()),
+        mean_pred_delta=float(pred_delta.mean()),
+    )
+
+
 # ── stereo ordering ───────────────────────────────────────────────────────────
 
 def stereo_ordering_accuracy(
@@ -234,6 +257,29 @@ def stereo_ordering_accuracy(
     }
 
 
+def eval_pair_metrics(
+    model: MLP,
+    ds,
+    smiles_col_a: str,
+    smiles_col_b: str,
+) -> dict:
+    """Evaluate predicted delta for any pair split (tag_pairs / substitution_pairs)."""
+    delta_B    = np.array(ds["delta_B"], dtype=np.float64)
+    X_a, bad_a = encode_split(list(ds[smiles_col_a]))
+    X_b, bad_b = encode_split(list(ds[smiles_col_b]))
+
+    pred_a     = predict(model, X_a)
+    pred_b     = predict(model, X_b)
+    pred_delta = pred_a - pred_b
+
+    bad = set(bad_a) | set(bad_b)
+    mask = np.ones(len(delta_B), dtype=bool)
+    for i in bad:
+        mask[i] = False
+
+    return pair_delta_metrics(delta_B[mask], pred_delta[mask])
+
+
 # ── reporting ─────────────────────────────────────────────────────────────────
 
 class _NpEncoder(json.JSONEncoder):
@@ -248,6 +294,8 @@ def save_results(
     seed: int,
     test_metrics: dict,
     stereo_metrics: dict,
+    tag_pair_metrics: dict,
+    substitution_pair_metrics: dict,
     training: dict,
     config: dict,
     output_dir: Path,
@@ -261,6 +309,8 @@ def save_results(
         "training": training,
         "test_metrics": test_metrics,
         "stereo_metrics": stereo_metrics,
+        "tag_pair_metrics": tag_pair_metrics,
+        "substitution_pair_metrics": substitution_pair_metrics,
     }
     out = output_dir / f"{stem}_seed{seed}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -270,7 +320,8 @@ def save_results(
 
 # ── main ──────────────────────────────────────────────────────────────────────
 
-def run_one_seed(seed: int, X_train, X_val, X_test, y_train, y_val, y_test, sp):
+def run_one_seed(seed: int, X_train, X_val, X_test, y_train, y_val, y_test, sp,
+                 tag_pairs, sub_pairs):
     torch.manual_seed(seed)
     np.random.seed(seed)
 
@@ -292,7 +343,12 @@ def run_one_seed(seed: int, X_train, X_val, X_test, y_train, y_val, y_test, sp):
     print(f"  Ordering accuracy: {stereo_metrics['ordering_acc']:.4f}"
           f"  ({stereo_metrics['n_correct']}/{stereo_metrics['n_pairs']})")
 
-    return test_metrics, stereo_metrics, history
+    tag_metrics = eval_pair_metrics(model, tag_pairs, "SMILES_tag", "SMILES_notag")
+    print(f"  Tag-pair delta Pearson: {tag_metrics['delta_pearson']:+.4f}")
+    sub_metrics = eval_pair_metrics(model, sub_pairs, "SMILES_1", "SMILES_2")
+    print(f"  Substitution-pair delta Pearson: {sub_metrics['delta_pearson']:+.4f}")
+
+    return test_metrics, stereo_metrics, tag_metrics, sub_metrics, history
 
 
 def main() -> None:
@@ -319,8 +375,10 @@ def main() -> None:
 
     # Load dataset once
     print("Loading peptag dataset …")
-    ds = hf_load_dataset(HF_REPO, "peptag")
-    sp = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
+    ds        = hf_load_dataset(HF_REPO, "peptag")
+    sp        = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
+    tag_pairs = hf_load_dataset(HF_REPO, "tag_pairs")["tag_pairs"]
+    sub_pairs = hf_load_dataset(HF_REPO, "substitution_pairs")["substitution_pairs"]
 
     # Encode fingerprints once (deterministic)
     for split_name in ("train", "val", "test"):
@@ -338,8 +396,8 @@ def main() -> None:
     print(f"Model parameters: {n_params:,}")
 
     print(f"\n── Seed {seed} ──")
-    test_metrics, stereo_metrics, history = run_one_seed(
-        seed, X_train, X_val, X_test, y_train, y_val, y_test, sp
+    test_metrics, stereo_metrics, tag_metrics, sub_metrics, history = run_one_seed(
+        seed, X_train, X_val, X_test, y_train, y_val, y_test, sp, tag_pairs, sub_pairs
     )
 
     config = {
@@ -352,7 +410,8 @@ def main() -> None:
         "epochs_run": history[-1]["epoch"],
         "best_val_loss": min(h["val_loss"] for h in history),
     }
-    save_results(seed, test_metrics, stereo_metrics, training, config, RESULTS_DIR, "results_morgan_mlp")
+    save_results(seed, test_metrics, stereo_metrics, tag_metrics, sub_metrics,
+                 training, config, RESULTS_DIR, "results_morgan_mlp")
 
 
 if __name__ == "__main__":

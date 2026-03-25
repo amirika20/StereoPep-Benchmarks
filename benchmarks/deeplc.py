@@ -403,6 +403,29 @@ def regression_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
     return dict(rmse=rmse, mae=mae, pearson=pr, spearman=sr, kendall=kr)
 
 
+def pair_delta_metrics(true_delta: np.ndarray, pred_delta: np.ndarray) -> dict:
+    """Delta prediction quality metrics for any matched pair type."""
+    rmse   = float(np.sqrt(mean_squared_error(true_delta, pred_delta)))
+    mae    = float(mean_absolute_error(true_delta, pred_delta))
+    pr, _  = stats.pearsonr(true_delta, pred_delta)
+    sr, _  = stats.spearmanr(true_delta, pred_delta)
+    mask   = np.sign(true_delta) != 0
+    n_eval = int(mask.sum())
+    n_corr = int((np.sign(true_delta[mask]) == np.sign(pred_delta[mask])).sum())
+    return dict(
+        n_pairs=len(true_delta),
+        delta_pearson=float(pr),
+        delta_spearman=float(sr),
+        delta_rmse=rmse,
+        delta_mae=mae,
+        ordering_acc=float(n_corr / n_eval) if n_eval > 0 else float("nan"),
+        n_correct=n_corr,
+        n_evaluated=n_eval,
+        mean_true_delta=float(true_delta.mean()),
+        mean_pred_delta=float(pred_delta.mean()),
+    )
+
+
 def stereo_ordering_accuracy(
     models: list[DeepLC],
     stereo_ds,
@@ -438,6 +461,27 @@ def stereo_ordering_accuracy(
     )
 
 
+def eval_pair_metrics(
+    models: list[DeepLC],
+    ds,
+    seq_col_a: str,
+    seq_col_b: str,
+) -> dict:
+    """Evaluate predicted delta for any pair split (tag_pairs / substitution_pairs)."""
+    seqs_a  = list(ds[seq_col_a])
+    seqs_b  = list(ds[seq_col_b])
+    delta_B = np.array(ds["delta_B"], dtype=np.float64)
+
+    aa_a, dia_a, oh_a, gl_a = encode_split(seqs_a, desc=f"Pairs {seq_col_a}")
+    aa_b, dia_b, oh_b, gl_b = encode_split(seqs_b, desc=f"Pairs {seq_col_b}")
+
+    pred_a     = predict(models, aa_a, dia_a, oh_a, gl_a)
+    pred_b     = predict(models, aa_b, dia_b, oh_b, gl_b)
+    pred_delta = pred_a - pred_b
+
+    return pair_delta_metrics(delta_B, pred_delta)
+
+
 # ── reporting ─────────────────────────────────────────────────────────────────
 
 class _NpEncoder(json.JSONEncoder):
@@ -452,6 +496,8 @@ def save_results(
     seed: int,
     test_metrics: dict,
     stereo_metrics: dict,
+    tag_pair_metrics: dict,
+    substitution_pair_metrics: dict,
     training: dict,
     config: dict,
     output_dir: Path,
@@ -465,6 +511,8 @@ def save_results(
         "training": training,
         "test_metrics": test_metrics,
         "stereo_metrics": stereo_metrics,
+        "tag_pair_metrics": tag_pair_metrics,
+        "substitution_pair_metrics": substitution_pair_metrics,
     }
     out = output_dir / f"{stem}_seed{seed}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -481,7 +529,9 @@ def run_one_seed(
     aa_te, dia_te, oh_te, gl_te,
     y_test: np.ndarray,
     stereo,
-) -> tuple[dict, dict, dict]:
+    tag_pairs,
+    sub_pairs,
+) -> tuple[dict, dict, dict, dict, dict]:
     torch.manual_seed(seed)
     np.random.seed(seed)
 
@@ -505,7 +555,12 @@ def run_one_seed(
     print(f"  Ordering accuracy: {stereo_metrics['ordering_acc']:.4f}  "
           f"({stereo_metrics['n_correct']}/{stereo_metrics['n_pairs']})")
 
-    return test_metrics, stereo_metrics, histories
+    tag_metrics = eval_pair_metrics(trained_models, tag_pairs, "Sequence_tag", "Sequence_notag")
+    print(f"  Tag-pair delta Pearson: {tag_metrics['delta_pearson']:+.4f}")
+    sub_metrics = eval_pair_metrics(trained_models, sub_pairs, "Sequence_1", "Sequence_2")
+    print(f"  Substitution-pair delta Pearson: {sub_metrics['delta_pearson']:+.4f}")
+
+    return test_metrics, stereo_metrics, tag_metrics, sub_metrics, histories
 
 
 def main() -> None:
@@ -525,8 +580,10 @@ def main() -> None:
     t0 = time.time()
 
     print("[data] Loading peptag dataset …")
-    ds     = hf_load_dataset(HF_REPO, "peptag")
-    stereo = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
+    ds        = hf_load_dataset(HF_REPO, "peptag")
+    stereo    = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
+    tag_pairs = hf_load_dataset(HF_REPO, "tag_pairs")["tag_pairs"]
+    sub_pairs = hf_load_dataset(HF_REPO, "substitution_pairs")["substitution_pairs"]
 
     print("[encode] Building feature tensors …")
     aa_tr, dia_tr, oh_tr, gl_tr = encode_split(list(ds["train"]["Peptide"]), "Train")
@@ -547,9 +604,9 @@ def main() -> None:
     val_loader   = make_loader(aa_va, dia_va, oh_va, gl_va, y_val)
 
     print(f"\n── Seed {seed} ──")
-    test_metrics, stereo_metrics, histories = run_one_seed(
+    test_metrics, stereo_metrics, tag_metrics, sub_metrics, histories = run_one_seed(
         seed, train_loader, val_loader,
-        aa_te, dia_te, oh_te, gl_te, y_test, stereo,
+        aa_te, dia_te, oh_te, gl_te, y_test, stereo, tag_pairs, sub_pairs,
     )
 
     print(f"\nTotal time: {time.time() - t0:.1f}s")
@@ -564,7 +621,8 @@ def main() -> None:
         f"kernel_{k}": {"epochs_run": hs[-1]["epoch"], "best_val_loss": min(h["val_loss"] for h in hs)}
         for k, hs in histories.items()
     }
-    save_results(seed, test_metrics, stereo_metrics, training, config, RESULTS_DIR, "results_deeplc")
+    save_results(seed, test_metrics, stereo_metrics, tag_metrics, sub_metrics,
+                 training, config, RESULTS_DIR, "results_deeplc")
 
 
 if __name__ == "__main__":
