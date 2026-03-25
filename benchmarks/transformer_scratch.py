@@ -52,7 +52,7 @@ WEIGHT_DECAY = 1e-4
 BATCH_SIZE   = 256
 MAX_EPOCHS   = 50
 PATIENCE     = 8          # overridden at runtime to 0.1 * MAX_EPOCHS
-LR_PATIENCE  = 4          # overridden at runtime to 0.05 * MAX_EPOCHS
+LR_PATIENCE  = 10
 DEVICE       = "cuda" if torch.cuda.is_available() else "cpu"
 
 RESULTS_DIR  = Path(__file__).parent / "output"
@@ -391,7 +391,6 @@ def main() -> None:
 
     MAX_EPOCHS  = args.epochs
     PATIENCE    = max(1, int(0.10 * MAX_EPOCHS))
-    LR_PATIENCE = max(1, int(0.05 * MAX_EPOCHS))
 
     print(f"Device: {DEVICE}  |  seed={seed}  |  max_epochs={MAX_EPOCHS}  |  patience={PATIENCE}")
     t0 = time.time()

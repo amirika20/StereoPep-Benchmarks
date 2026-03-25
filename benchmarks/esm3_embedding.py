@@ -97,7 +97,7 @@ TRAIN_BATCH  = 32    # smaller: each batch runs a full backbone forward pass
 ENCODE_BATCH = 32    # batch size for no-grad encoding (val/test/stereo)
 MAX_EPOCHS   = 20
 PATIENCE     = 5      # overridden at runtime to 0.1 * MAX_EPOCHS
-LR_PATIENCE  = 2      # overridden at runtime to 0.05 * MAX_EPOCHS
+LR_PATIENCE  = 10
 DEVICE       = "cuda" if torch.cuda.is_available() else "cpu"
 
 RESULTS_DIR  = Path(__file__).parent / "output"
@@ -550,7 +550,6 @@ def main() -> None:
     seed        = args.seed
     MAX_EPOCHS  = args.epochs
     PATIENCE    = max(1, int(0.10 * MAX_EPOCHS))
-    LR_PATIENCE = max(1, int(0.05 * MAX_EPOCHS))
 
     # Resolve requested model keys
     if args.model.strip().lower() == "all":

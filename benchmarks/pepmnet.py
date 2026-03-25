@@ -75,7 +75,7 @@ WEIGHT_DECAY = 0.0
 BATCH_SIZE   = 16   # small: forward pass loops per-sample
 MAX_EPOCHS   = 100
 PATIENCE     = 10
-LR_PATIENCE  = 5
+LR_PATIENCE  = 10
 DEVICE       = "cuda" if torch.cuda.is_available() else "cpu"
 
 RESULTS_DIR = Path(__file__).parent / "output"
@@ -863,7 +863,6 @@ def main() -> None:
 
     MAX_EPOCHS  = args.epochs
     PATIENCE    = max(1, int(0.10 * MAX_EPOCHS))
-    LR_PATIENCE = max(1, int(0.05 * MAX_EPOCHS))
 
     print(f"Device: {DEVICE}  |  seed={seed}  |  max_epochs={MAX_EPOCHS}  |  patience={PATIENCE}")
     t0 = time.time()

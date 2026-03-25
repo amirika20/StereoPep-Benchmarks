@@ -63,6 +63,7 @@ WEIGHT_DECAY = 0.0         # manual L1 used instead
 BATCH_SIZE   = 256
 MAX_EPOCHS   = 50
 PATIENCE     = 8          # overridden at runtime to 0.1 * MAX_EPOCHS
+LR_PATIENCE  = 10
 DEVICE       = "cuda" if torch.cuda.is_available() else "cpu"
 
 RESULTS_DIR  = Path(__file__).parent / "output"
@@ -304,7 +305,7 @@ def train_one(
 ) -> list[dict]:
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, patience=3, factor=0.5, min_lr=1e-5
+        optimizer, patience=LR_PATIENCE, factor=0.5, min_lr=1e-5
     )
     criterion = nn.MSELoss()
 
