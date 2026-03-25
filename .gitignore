@@ -1,3 +1,4 @@
 .DeepRT
 \logs
 benchmarks/output/
+benchmarks/__pycache__
