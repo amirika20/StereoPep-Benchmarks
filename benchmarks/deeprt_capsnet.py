@@ -453,7 +453,7 @@ def run_one_seed(
     print(f"  Ordering accuracy: {stereo_metrics['ordering_acc']:.4f}  "
           f"({stereo_metrics['n_correct']}/{stereo_metrics['n_pairs']})")
 
-    tag_metrics = eval_pair_metrics(trained_models, tag_pairs, "Sequence_tagged", "Sequence_untagged", y_min, y_max)
+    tag_metrics = eval_pair_metrics(trained_models, tag_pairs, "Sequence_untagged", "Sequence_tagged", y_min, y_max)
     print(f"  Tag-pair delta Pearson: {tag_metrics['delta_pearson']:+.4f}")
     sub_metrics = eval_pair_metrics(trained_models, sub_pairs, "Sequence_1", "Sequence_2", y_min, y_max)
     print(f"  Substitution-pair delta Pearson: {sub_metrics['delta_pearson']:+.4f}")
