@@ -73,7 +73,8 @@ LR_PATIENCE  = 10
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-RESULTS_DIR = Path(__file__).parent / "output"
+RESULTS_DIR  = Path(__file__).parent / "output"
+CACHE_DIR    = Path(__file__).parent / "cache" / "conformers"
 
 _CHIRALITY_MAP = {
     Chem.rdchem.ChiralType.CHI_UNSPECIFIED:     0,
@@ -154,6 +155,29 @@ def encode_smiles_3d(
         else:
             graphs.append(g)
     return graphs, bad
+
+
+def load_or_encode_smiles_3d(
+    smiles_list: list[str],
+    name: str,
+    conf_seed: int = 42,
+    cache_dir: Path | None = None,
+) -> tuple[list[Data], list[int]]:
+    """
+    Load precomputed conformers from cache if available, otherwise generate them.
+
+    Cache files are written by precompute_conformers.py and stored as
+    {cache_dir}/{name}_seed{conf_seed}.pt.
+    """
+    if cache_dir is not None:
+        cache_file = cache_dir / f"{name}_seed{conf_seed}.pt"
+        if cache_file.exists():
+            payload = torch.load(cache_file, weights_only=False)
+            graphs, bad = payload["graphs"], payload["bad"]
+            print(f"  Loaded {len(graphs)} conformers from cache: {cache_file.name}")
+            return graphs, bad
+
+    return encode_smiles_3d(smiles_list, desc=name, conf_seed=conf_seed)
 
 
 # ── EGNN ───────────────────────────────────────────────────────────────────────
@@ -482,9 +506,18 @@ def pair_delta_metrics(true_delta: np.ndarray, pred_delta: np.ndarray) -> dict:
     )
 
 
-def stereo_ordering_accuracy(model: EGNNPredictor, stereo_ds) -> dict:
-    graphs_f, bad_f = encode_smiles_3d(stereo_ds["SMILES_f"], desc="Stereo D-Phe")
-    graphs_F, bad_F = encode_smiles_3d(stereo_ds["SMILES_F"], desc="Stereo L-Phe")
+def stereo_ordering_accuracy(
+    model: EGNNPredictor,
+    stereo_ds,
+    conf_seed: int = 42,
+    cache_dir: Path | None = None,
+) -> dict:
+    graphs_f, bad_f = load_or_encode_smiles_3d(
+        list(stereo_ds["SMILES_f"]), "stereo_pairs_SMILES_f", conf_seed, cache_dir
+    )
+    graphs_F, bad_F = load_or_encode_smiles_3d(
+        list(stereo_ds["SMILES_F"]), "stereo_pairs_SMILES_F", conf_seed, cache_dir
+    )
     delta_B = np.array(stereo_ds["delta_B"], dtype=np.float64)
 
     pred_f     = predict(model, graphs_f)
@@ -520,10 +553,17 @@ def eval_pair_metrics(
     ds,
     smiles_col_a: str,
     smiles_col_b: str,
+    ds_name: str = "pairs",
+    conf_seed: int = 42,
+    cache_dir: Path | None = None,
 ) -> dict:
     delta_B  = np.array(ds["delta_B"], dtype=np.float64)
-    graphs_a, bad_a = encode_smiles_3d(list(ds[smiles_col_a]), desc=f"Pairs {smiles_col_a}")
-    graphs_b, bad_b = encode_smiles_3d(list(ds[smiles_col_b]), desc=f"Pairs {smiles_col_b}")
+    graphs_a, bad_a = load_or_encode_smiles_3d(
+        list(ds[smiles_col_a]), f"{ds_name}_{smiles_col_a}", conf_seed, cache_dir
+    )
+    graphs_b, bad_b = load_or_encode_smiles_3d(
+        list(ds[smiles_col_b]), f"{ds_name}_{smiles_col_b}", conf_seed, cache_dir
+    )
 
     pred_a     = predict(model, graphs_a)
     pred_b     = predict(model, graphs_b)
@@ -588,6 +628,8 @@ def run_one_seed(
     sp,
     tag_pairs,
     sub_pairs,
+    conf_seed: int = 42,
+    cache_dir: Path | None = None,
 ) -> tuple[dict, dict, dict, dict, list[dict]]:
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -613,14 +655,20 @@ def run_one_seed(
     print(f"  RMSE={test_metrics['rmse']:.4f}  Pearson={test_metrics['pearson']:+.4f}"
           f"  Spearman={test_metrics['spearman']:+.4f}")
 
-    stereo_metrics = stereo_ordering_accuracy(model, sp)
+    stereo_metrics = stereo_ordering_accuracy(model, sp, conf_seed=conf_seed, cache_dir=cache_dir)
     print(f"  Stereo ordering acc: {stereo_metrics['ordering_acc']:.4f}"
           f"  ({stereo_metrics['n_correct']}/{stereo_metrics['n_pairs']})")
 
-    tag_metrics = eval_pair_metrics(model, tag_pairs, "SMILES_untagged", "SMILES_tagged")
+    tag_metrics = eval_pair_metrics(
+        model, tag_pairs, "SMILES_untagged", "SMILES_tagged",
+        ds_name="tag_pairs", conf_seed=conf_seed, cache_dir=cache_dir,
+    )
     print(f"  Tag-pair delta Pearson: {tag_metrics['delta_pearson']:+.4f}")
 
-    sub_metrics = eval_pair_metrics(model, sub_pairs, "SMILES_1", "SMILES_2")
+    sub_metrics = eval_pair_metrics(
+        model, sub_pairs, "SMILES_1", "SMILES_2",
+        ds_name="substitution_pairs", conf_seed=conf_seed, cache_dir=cache_dir,
+    )
     print(f"  Substitution-pair delta Pearson: {sub_metrics['delta_pearson']:+.4f}")
 
     return test_metrics, stereo_metrics, tag_metrics, sub_metrics, history
@@ -632,16 +680,27 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="EGNN benchmark with RDKit 3D conformers on PepTag"
     )
-    parser.add_argument("--seed",   type=int, default=0)
-    parser.add_argument("--epochs", type=int, default=MAX_EPOCHS)
+    parser.add_argument("--seed",      type=int, default=0)
+    parser.add_argument("--epochs",    type=int, default=MAX_EPOCHS)
+    parser.add_argument("--conf-seed", type=int, default=42,
+                        help="RDKit conformer random seed (must match precompute_conformers.py)")
+    parser.add_argument("--cache-dir", type=str, default=str(CACHE_DIR),
+                        help="Directory with precomputed conformers (from precompute_conformers.py)")
     args = parser.parse_args()
-    seed = args.seed
+    seed      = args.seed
+    conf_seed = args.conf_seed
+    cache_dir = Path(args.cache_dir) if args.cache_dir else None
 
     MAX_EPOCHS  = args.epochs
     PATIENCE    = max(1, int(0.10 * MAX_EPOCHS))
 
     print(f"Device: {DEVICE}  |  seed={seed}  |  max_epochs={MAX_EPOCHS}"
           f"  |  patience={PATIENCE}  |  cutoff={RADIUS_CUTOFF}Å")
+    if cache_dir is not None and cache_dir.exists():
+        print(f"Conformer cache : {cache_dir}")
+    else:
+        print("Conformer cache : not found — will generate on-the-fly (slow)")
+        cache_dir = None
 
     print("Loading PepTag dataset …")
     ds        = hf_load_dataset(HF_REPO, "peptag")
@@ -649,10 +708,16 @@ def main() -> None:
     tag_pairs = hf_load_dataset(HF_REPO, "tag_pairs")["tag_pairs"]
     sub_pairs = hf_load_dataset(HF_REPO, "substitution_pairs")["substitution_pairs"]
 
-    print("Generating 3D conformers (ETKDGv3) …")
-    graphs_train, bad_train = encode_smiles_3d(ds["train"]["SMILES"], desc="Train 3D")
-    graphs_val,   bad_val   = encode_smiles_3d(ds["val"]["SMILES"],   desc="Val 3D  ")
-    graphs_test,  bad_test  = encode_smiles_3d(ds["test"]["SMILES"],  desc="Test 3D ")
+    print("Loading/generating 3D conformers (ETKDGv3) …")
+    graphs_train, bad_train = load_or_encode_smiles_3d(
+        list(ds["train"]["SMILES"]), "peptag_train", conf_seed, cache_dir
+    )
+    graphs_val, bad_val = load_or_encode_smiles_3d(
+        list(ds["val"]["SMILES"]), "peptag_val", conf_seed, cache_dir
+    )
+    graphs_test, bad_test = load_or_encode_smiles_3d(
+        list(ds["test"]["SMILES"]), "peptag_test", conf_seed, cache_dir
+    )
     print(f"  Failed embeddings — train:{len(bad_train)}  val:{len(bad_val)}"
           f"  test:{len(bad_test)}")
 
@@ -667,6 +732,8 @@ def main() -> None:
         graphs_train, graphs_val, graphs_test,
         y_train, y_val, y_test,
         sp, tag_pairs, sub_pairs,
+        conf_seed=conf_seed,
+        cache_dir=cache_dir,
     )
 
     config = {
