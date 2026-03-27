@@ -22,7 +22,7 @@ stereo-ordering accuracy is expected to be ~0.5.
 Results are written to benchmarks/output/results_pepmnet_seed{N}.json.
 
 Extra dependencies (beyond the standard benchmark requirements):
-  pip install torch-scatter biopython
+  pip install biopython
 """
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.preprocessing import OneHotEncoder
 from torch.utils.data import DataLoader
 from torch_geometric.nn import ARMAConv, NNConv, global_add_pool
-from torch_scatter import scatter
+from torch_geometric.utils import scatter
 from tqdm import tqdm
 
 try:
