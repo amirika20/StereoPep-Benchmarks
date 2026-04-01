@@ -28,23 +28,43 @@ os.makedirs(FIGURES_DIR, exist_ok=True)
 os.makedirs(METRICS_DIR, exist_ok=True)
 
 # ---------------------------------------------------------------------------
-# Pretty display names
+# Pretty display names and fixed model order
 # ---------------------------------------------------------------------------
 MODEL_NAMES = {
-    "results_deeplc":             "DeepLC",
-    "results_deeprt_capsnet":     "DeepRT-CapsNet",
-    "results_morgan_mlp":         "Morgan FP MLP",
-    "results_pretrained_gin":     "Pretrained GIN",
-    "results_transformer_scratch": "Transformer (scratch)",
+    "results_gin_scratch":          "GIN",
+    "results_pretrained_gin":       "Pretrained GIN",
+    "results_esm3_sm_embedding":    "ESM3-small",
+    "results_esmc_300m_embedding":  "ESMC-300M",
+    "results_esmc_600m_embedding":  "ESMC-600M",
+    "results_transformer_scratch":  "Transformer",
+    "results_deeplc":               "DeepLC",
+    "results_deeprt_capsnet":       "DeepRT-CapsNet",
+    "results_morgan_mlp":           "Morgan FP MLP",
 }
+
+MODEL_ORDER = [
+    "GIN",
+    "Pretrained GIN",
+    "ESM3-small",
+    "ESMC-300M",
+    "ESMC-600M",
+    "Transformer",
+    "DeepLC",
+    "DeepRT-CapsNet",
+    "Morgan FP MLP",
+]
 
 # Consistent colour palette (one colour per model)
 PALETTE = {
-    "DeepLC":                 "#4C72B0",
-    "DeepRT-CapsNet":         "#DD8452",
-    "Morgan FP MLP":          "#55A868",
-    "Pretrained GIN":         "#C44E52",
-    "Transformer (scratch)":  "#8172B2",
+    "GIN":             "#2171b5",
+    "Pretrained GIN":  "#6baed6",
+    "ESM3-small":      "#238b45",
+    "ESMC-300M":       "#74c476",
+    "ESMC-600M":       "#00441b",
+    "Transformer":     "#7a51a1",
+    "DeepLC":          "#e6550d",
+    "DeepRT-CapsNet":  "#c44e52",
+    "Morgan FP MLP":   "#8c6d31",
 }
 
 # ---------------------------------------------------------------------------
@@ -75,29 +95,40 @@ def load_results(output_dir: str) -> dict[str, list[dict]]:
 # ---------------------------------------------------------------------------
 METRICS_FLAT = {
     # key in flat record → (section, field)
-    "rmse":               ("test_metrics",             "rmse"),
-    "mae":                ("test_metrics",             "mae"),
-    "pearson":            ("test_metrics",             "pearson"),
-    "spearman":           ("test_metrics",             "spearman"),
-    "kendall":            ("test_metrics",             "kendall"),
+    "mse":          ("test_metrics", "mse"),
+    "rmse":         ("test_metrics", "rmse"),
+    "mae":          ("test_metrics", "mae"),
+    "mean_error":   ("test_metrics", "mean_error"),
+    "r2":           ("test_metrics", "r2"),
+    "pearson":      ("test_metrics", "pearson"),
+    "spearman":     ("test_metrics", "spearman"),
+    "kendall":      ("test_metrics", "kendall"),
     # stereo pairs (D-Phe vs L-Phe)
     "ordering_acc":       ("stereo_metrics",           "ordering_acc"),
     "delta_pearson":      ("stereo_metrics",           "delta_pearson"),
     "delta_spearman":     ("stereo_metrics",           "delta_spearman"),
+    "delta_kendall":      ("stereo_metrics",           "delta_kendall"),
+    "delta_rmse":         ("stereo_metrics",           "delta_rmse"),
+    "delta_mae":          ("stereo_metrics",           "delta_mae"),
+    "delta_auc":          ("stereo_metrics",           "delta_auc"),
     "mean_pred_delta":    ("stereo_metrics",           "mean_pred_delta"),
     "n_correct":          ("stereo_metrics",           "n_correct"),
     "n_pairs":            ("stereo_metrics",           "n_pairs"),
     # tag pairs (with F/f tag vs without)
     "tag_delta_pearson":  ("tag_pair_metrics",         "delta_pearson"),
     "tag_delta_spearman": ("tag_pair_metrics",         "delta_spearman"),
+    "tag_delta_kendall":  ("tag_pair_metrics",         "delta_kendall"),
     "tag_delta_rmse":     ("tag_pair_metrics",         "delta_rmse"),
     "tag_delta_mae":      ("tag_pair_metrics",         "delta_mae"),
+    "tag_delta_auc":      ("tag_pair_metrics",         "delta_auc"),
     "tag_ordering_acc":   ("tag_pair_metrics",         "ordering_acc"),
     # substitution pairs (differ in one position)
     "sub_delta_pearson":  ("substitution_pair_metrics","delta_pearson"),
     "sub_delta_spearman": ("substitution_pair_metrics","delta_spearman"),
+    "sub_delta_kendall":  ("substitution_pair_metrics","delta_kendall"),
     "sub_delta_rmse":     ("substitution_pair_metrics","delta_rmse"),
     "sub_delta_mae":      ("substitution_pair_metrics","delta_mae"),
+    "sub_delta_auc":      ("substitution_pair_metrics","delta_auc"),
     "sub_ordering_acc":   ("substitution_pair_metrics","ordering_acc"),
 }
 
@@ -125,9 +156,10 @@ def aggregate(grouped: dict[str, list[dict]]) -> pd.DataFrame:
         rows.append(row)
 
     df = pd.DataFrame(rows)
-    # Sort by ordering accuracy (highest first); fall back if column absent
-    sort_col = "ordering_acc_mean" if "ordering_acc_mean" in df.columns else df.columns[2]
-    df = df.sort_values(sort_col, ascending=False).reset_index(drop=True)
+    # Sort by MODEL_ORDER; unknown models go to the end
+    order_map = {name: i for i, name in enumerate(MODEL_ORDER)}
+    df["_sort_key"] = df["model"].map(lambda m: order_map.get(m, len(MODEL_ORDER)))
+    df = df.sort_values("_sort_key").drop(columns=["_sort_key"]).reset_index(drop=True)
     return df
 
 
@@ -156,7 +188,8 @@ def save_summary(df: pd.DataFrame):
 
         summary[model] = {
             "n_seeds": int(row["n_seeds"]),
-            "test_metrics": _section(["rmse", "mae", "pearson", "spearman", "kendall"]),
+            "test_metrics": _section(["mse", "rmse", "mae", "mean_error", "r2",
+                                       "pearson", "spearman", "kendall"]),
             "stereo_metrics": _section(["ordering_acc", "delta_pearson", "delta_spearman",
                                         "mean_pred_delta", "n_correct"]),
             "tag_pair_metrics": _section(["tag_delta_pearson", "tag_delta_spearman",
@@ -304,22 +337,19 @@ def _strip_plot(grouped: dict[str, list[dict]], metric_section: str, metric_fiel
     """Show individual seed values as strips, with mean/std overlay."""
     fig, ax = plt.subplots(figsize=(8, 4.5))
 
-    model_keys = list(MODEL_NAMES.keys())
+    # Collect data in MODEL_ORDER
+    key_by_display = {v: k for k, v in MODEL_NAMES.items()}
     display_order = []
     seed_data = []
 
-    for key in model_keys:
-        if key not in grouped:
+    for display_name in MODEL_ORDER:
+        key = key_by_display.get(display_name)
+        if key is None or key not in grouped:
             continue
         vals = [r.get(metric_section, {}).get(metric_field) for r in grouped[key]]
         vals = [v for v in vals if v is not None]
-        display_order.append(MODEL_NAMES[key])
+        display_order.append(display_name)
         seed_data.append(np.array(vals, dtype=float))
-
-    # Sort by mean (descending for ordering_acc)
-    order = np.argsort([-d.mean() for d in seed_data])
-    display_order = [display_order[i] for i in order]
-    seed_data     = [seed_data[i]     for i in order]
 
     x = np.arange(len(display_order))
     for i, (name, vals) in enumerate(zip(display_order, seed_data)):
@@ -354,11 +384,11 @@ def _strip_plot(grouped: dict[str, list[dict]], metric_section: str, metric_fiel
 def _radar_chart(df: pd.DataFrame, filename: str):
     """Normalised radar chart across 8 metrics (higher always = better)."""
     metric_cols  = ["ordering_acc_mean", "pearson_mean", "spearman_mean",
-                    "kendall_mean", "delta_pearson_mean", "delta_spearman_mean",
-                    "tag_delta_pearson_mean", "sub_delta_pearson_mean"]
-    metric_labels = ["Ordering\nAcc", "Pearson", "Spearman", "Kendall",
-                     "Stereo\nΔ Pearson", "Stereo\nΔ Spearman",
-                     "Tag\nΔ Pearson", "Sub\nΔ Pearson"]
+                    "kendall_mean", "delta_auc_mean", "delta_spearman_mean",
+                    "tag_ordering_acc_mean", "sub_ordering_acc_mean"]
+    metric_labels = ["Diast.\nAcc", "Pearson", "Spearman", "Kendall",
+                     "Diast.\nAUC", "Diast.\nΔ Spearman",
+                     "Add.Mut.\nAcc", "Pt.Mut.\nAcc"]
     # Keep only columns that exist (older result files may lack the new ones)
     available = [(c, l) for c, l in zip(metric_cols, metric_labels) if c in df.columns]
     metric_cols, metric_labels = zip(*available) if available else ([], [])
@@ -411,28 +441,32 @@ def _fmt(df: pd.DataFrame, row, col: str, w: int = 8, d: int = 4) -> str:
 
 
 def print_table(df: pd.DataFrame):
-    print("\n" + "=" * 90)
-    print(f"{'Model':<25} {'Ord.Acc':>9} {'±':>6}  {'Pearson':>9} {'±':>6}  "
-          f"{'Spearman':>9} {'±':>6}  {'RMSE':>8} {'±':>6}  {'MAE':>8} {'±':>6}")
-    print("=" * 90)
+    print("\n" + "=" * 120)
+    print(f"{'Model':<25} {'Pearson':>9} {'±':>6}  {'Spearman':>9} {'±':>6}  {'Kendall':>9} {'±':>6}  "
+          f"{'R²':>8} {'±':>6}  {'RMSE':>8} {'±':>6}  {'MSE':>8} {'±':>6}  "
+          f"{'MAE':>8} {'±':>6}  {'Mean Err':>9} {'±':>6}")
+    print("=" * 120)
     for _, row in df.iterrows():
         print(
             f"{row['model']:<25} "
-            f"{_fmt(df, row, 'ordering_acc')}  "
             f"{_fmt(df, row, 'pearson')}  "
             f"{_fmt(df, row, 'spearman')}  "
+            f"{_fmt(df, row, 'kendall')}  "
+            f"{_fmt(df, row, 'r2', d=3)}  "
             f"{_fmt(df, row, 'rmse', d=3)}  "
-            f"{_fmt(df, row, 'mae', d=3)}"
+            f"{_fmt(df, row, 'mse', d=3)}  "
+            f"{_fmt(df, row, 'mae', d=3)}  "
+            f"{_fmt(df, row, 'mean_error', d=3)}"
         )
-    print("=" * 90)
+    print("=" * 120)
 
 
 def print_pair_table(df: pd.DataFrame):
-    """Console table for tag-pair and substitution-pair delta metrics."""
+    """Console table for addition-mutation-pair and point-mutation-pair delta metrics."""
     print("\n" + "=" * 110)
     print(f"{'Model':<25} "
-          f"{'Tag ΔPearson':>13} {'±':>6}  {'Tag ΔSpear':>11} {'±':>6}  {'Tag OrdAcc':>11} {'±':>6}  "
-          f"{'Sub ΔPearson':>13} {'±':>6}  {'Sub ΔSpear':>11} {'±':>6}  {'Sub OrdAcc':>11} {'±':>6}")
+          f"{'Add.Mut. ΔPearson':>17} {'±':>6}  {'Add.Mut. ΔSpear':>15} {'±':>6}  {'Add.Mut. PwAcc':>14} {'±':>6}  "
+          f"{'Pt.Mut. ΔPearson':>16} {'±':>6}  {'Pt.Mut. ΔSpear':>14} {'±':>6}  {'Pt.Mut. PwAcc':>13} {'±':>6}")
     print("=" * 110)
     for _, row in df.iterrows():
         print(
@@ -467,24 +501,32 @@ def main():
     # -----------------------------------------------------------------------
     print("\nGenerating figures …")
 
-    # --- MOST IMPORTANT: ordering accuracy ---
+    # --- MOST IMPORTANT: pairwise accuracy ---
     _bar_plot(
         df, "ordering_acc",
-        title="Stereoisomer Ordering Accuracy (D/L-Phe pairs)",
-        ylabel="Ordering Accuracy",
-        filename="ordering_accuracy.png",
+        title="Diastereomer Pair Pairwise Accuracy (D/L-Phe pairs)",
+        ylabel="Pairwise Accuracy",
+        filename="pairwise_accuracy_diastereomer.png",
         higher_is_better=True,
         ylim=(0.45, 0.80),
     )
 
     _strip_plot(
         grouped, "stereo_metrics", "ordering_acc",
-        title="Ordering Accuracy — per-seed distribution",
-        ylabel="Ordering Accuracy",
-        filename="ordering_accuracy_seeds.png",
+        title="Diastereomer Pair Pairwise Accuracy — per-seed distribution",
+        ylabel="Pairwise Accuracy",
+        filename="pairwise_accuracy_diastereomer_seeds.png",
     )
 
     # --- Test metrics (regression) ---
+    _bar_plot(
+        df, "mse",
+        title="Mean Squared Error (lower is better)",
+        ylabel="MSE (minutes²)",
+        filename="mse.png",
+        higher_is_better=False,
+    )
+
     _bar_plot(
         df, "rmse",
         title="Root Mean Squared Error (lower is better)",
@@ -499,6 +541,23 @@ def main():
         ylabel="MAE (minutes)",
         filename="mae.png",
         higher_is_better=False,
+    )
+
+    _bar_plot(
+        df, "mean_error",
+        title="Mean Error / Bias (closer to 0 is better)",
+        ylabel="Mean Error (minutes)",
+        filename="mean_error.png",
+        higher_is_better=False,
+        highlight_best=False,
+    )
+
+    _bar_plot(
+        df, "r2",
+        title="R² Score (higher is better)",
+        ylabel="R²",
+        filename="r2.png",
+        higher_is_better=True,
     )
 
     _bar_plot(
@@ -519,7 +578,7 @@ def main():
 
     _bar_plot(
         df, "kendall",
-        title="Kendall Tau",
+        title="Kendall τ",
         ylabel="Kendall τ",
         filename="kendall.png",
         ylim=(0.2, 0.8),
@@ -530,76 +589,123 @@ def main():
         df,
         metrics=["pearson", "spearman", "kendall"],
         labels=["Pearson r", "Spearman ρ", "Kendall τ"],
-        title="Correlation Metrics Comparison",
+        title="Correlation Metrics",
         ylabel="Correlation",
         filename="correlations_grouped.png",
         ylim=(0.3, 1.0),
     )
 
-    # --- Stereo delta correlations ---
+    # --- Grouped: all error metrics together ---
     _multi_metric_bar(
         df,
-        metrics=["ordering_acc", "delta_pearson", "delta_spearman"],
-        labels=["Ordering Acc", "ΔRT Pearson", "ΔRT Spearman"],
-        title="Stereoisomer Discrimination Metrics (D/L-Phe pairs)",
-        ylabel="Score",
-        filename="stereo_metrics_grouped.png",
+        metrics=["mse", "rmse", "mae"],
+        labels=["MSE", "RMSE", "MAE"],
+        title="Error Metrics (lower is better)",
+        ylabel="Error (minutes / minutes²)",
+        filename="error_metrics_grouped.png",
     )
 
-    # --- Tag-pair metrics ---
+    # --- Diastereomer pair pairwise metrics ---
+    _multi_metric_bar(
+        df,
+        metrics=["ordering_acc", "delta_kendall", "delta_spearman", "delta_auc"],
+        labels=["Pairwise Accuracy", "Kendall τ", "Spearman ρ", "AUC"],
+        title="Diastereomer Pair Pairwise Metrics (D/L-Phe pairs)",
+        ylabel="Score",
+        filename="diastereomer_metrics_grouped.png",
+    )
+
+    _multi_metric_bar(
+        df,
+        metrics=["delta_mae", "delta_rmse"],
+        labels=["MAE on Δ", "RMSE on Δ"],
+        title="Diastereomer Pair ΔRT Error (D/L-Phe pairs)",
+        ylabel="Error (minutes)",
+        filename="diastereomer_delta_error.png",
+    )
+
+    # --- Addition mutation pair metrics ---
     _bar_plot(
         df, "tag_delta_pearson",
-        title="Tag-Pair ΔRT Pearson (tagged vs untagged peptides)",
+        title="Addition Mutation Pair ΔRT Pearson",
         ylabel="Pearson r  (predicted Δ vs true Δ)",
-        filename="tag_pair_delta_pearson.png",
+        filename="addition_mutation_delta_pearson.png",
         higher_is_better=True,
     )
 
     _multi_metric_bar(
         df,
-        metrics=["tag_ordering_acc", "tag_delta_pearson", "tag_delta_spearman"],
-        labels=["Ordering Acc", "ΔRT Pearson", "ΔRT Spearman"],
-        title="Tag-Pair Discrimination Metrics (tagged vs untagged)",
+        metrics=["tag_ordering_acc", "tag_delta_kendall", "tag_delta_spearman", "tag_delta_auc"],
+        labels=["Pairwise Accuracy", "Kendall τ", "Spearman ρ", "AUC"],
+        title="Addition Mutation Pair Pairwise Metrics",
         ylabel="Score",
-        filename="tag_pair_metrics_grouped.png",
+        filename="addition_mutation_metrics_grouped.png",
     )
 
-    # --- Substitution-pair metrics ---
+    _multi_metric_bar(
+        df,
+        metrics=["tag_delta_mae", "tag_delta_rmse"],
+        labels=["MAE on Δ", "RMSE on Δ"],
+        title="Addition Mutation Pair ΔRT Error",
+        ylabel="Error (minutes)",
+        filename="addition_mutation_delta_error.png",
+    )
+
+    # --- Point mutation pair metrics ---
     _bar_plot(
         df, "sub_delta_pearson",
-        title="Substitution-Pair ΔRT Pearson (single-position substitutions)",
+        title="Point Mutation Pair ΔRT Pearson",
         ylabel="Pearson r  (predicted Δ vs true Δ)",
-        filename="sub_pair_delta_pearson.png",
+        filename="point_mutation_delta_pearson.png",
         higher_is_better=True,
     )
 
     _multi_metric_bar(
         df,
-        metrics=["sub_ordering_acc", "sub_delta_pearson", "sub_delta_spearman"],
-        labels=["Ordering Acc", "ΔRT Pearson", "ΔRT Spearman"],
-        title="Substitution-Pair Discrimination Metrics (single-position substitutions)",
+        metrics=["sub_ordering_acc", "sub_delta_kendall", "sub_delta_spearman", "sub_delta_auc"],
+        labels=["Pairwise Accuracy", "Kendall τ", "Spearman ρ", "AUC"],
+        title="Point Mutation Pair Pairwise Metrics",
         ylabel="Score",
-        filename="sub_pair_metrics_grouped.png",
+        filename="point_mutation_metrics_grouped.png",
+    )
+
+    _multi_metric_bar(
+        df,
+        metrics=["sub_delta_mae", "sub_delta_rmse"],
+        labels=["MAE on Δ", "RMSE on Δ"],
+        title="Point Mutation Pair ΔRT Error",
+        ylabel="Error (minutes)",
+        filename="point_mutation_delta_error.png",
     )
 
     # --- Cross-pair-type Δ Pearson comparison ---
     _multi_metric_bar(
         df,
         metrics=["delta_pearson", "tag_delta_pearson", "sub_delta_pearson"],
-        labels=["Stereo (D/L-Phe)", "Tag (tagged/untagged)", "Substitution (1-pos)"],
+        labels=["Diastereomer", "Addition Mutation", "Point Mutation"],
         title="ΔRT Pearson Across All Pair Types",
         ylabel="Pearson r  (predicted Δ vs true Δ)",
         filename="delta_pearson_all_pairs.png",
     )
 
-    # --- Cross-pair-type ordering accuracy comparison ---
+    # --- Cross-pair-type pairwise accuracy comparison ---
     _multi_metric_bar(
         df,
         metrics=["ordering_acc", "tag_ordering_acc", "sub_ordering_acc"],
-        labels=["Stereo (D/L-Phe)", "Tag (tagged/untagged)", "Substitution (1-pos)"],
-        title="Ordering Accuracy Across All Pair Types",
-        ylabel="Ordering Accuracy",
-        filename="ordering_acc_all_pairs.png",
+        labels=["Diastereomer", "Addition Mutation", "Point Mutation"],
+        title="Pairwise Accuracy Across All Pair Types",
+        ylabel="Pairwise Accuracy",
+        filename="pairwise_accuracy_all_pairs.png",
+    )
+
+    # --- Cross-pair-type AUC comparison ---
+    _multi_metric_bar(
+        df,
+        metrics=["delta_auc", "tag_delta_auc", "sub_delta_auc"],
+        labels=["Diastereomer", "Addition Mutation", "Point Mutation"],
+        title="AUC on Pairwise Comparisons Across All Pair Types",
+        ylabel="AUC",
+        filename="auc_all_pairs.png",
     )
 
     # --- Radar chart ---

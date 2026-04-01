@@ -36,7 +36,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from datasets import load_dataset as hf_load_dataset
 from scipy import stats
-from sklearn.metrics import mean_absolute_error, mean_squared_error
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, roc_auc_score
 from torch.autograd import Variable
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
@@ -287,12 +287,14 @@ def predict(models: list[CapsNet], tokens: torch.Tensor) -> np.ndarray:
 # ── metrics ───────────────────────────────────────────────────────────────────
 
 def regression_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
-    rmse  = float(np.sqrt(mean_squared_error(y_true, y_pred)))
-    mae   = float(mean_absolute_error(y_true, y_pred))
+    mse  = float(mean_squared_error(y_true, y_pred))
+    rmse = float(np.sqrt(mse))
+    mae  = float(mean_absolute_error(y_true, y_pred))
     pr, _ = stats.pearsonr(y_true, y_pred)
     sr, _ = stats.spearmanr(y_true, y_pred)
     kr, _ = stats.kendalltau(y_true, y_pred)
-    return dict(rmse=rmse, mae=mae, pearson=pr, spearman=sr, kendall=kr)
+    return dict(mse=mse, rmse=rmse, mae=mae, mean_error=float(np.mean(y_pred - y_true)),
+                r2=float(r2_score(y_true, y_pred)), pearson=float(pr), spearman=float(sr), kendall=float(kr))
 
 
 def pair_delta_metrics(true_delta: np.ndarray, pred_delta: np.ndarray) -> dict:
@@ -301,15 +303,23 @@ def pair_delta_metrics(true_delta: np.ndarray, pred_delta: np.ndarray) -> dict:
     mae    = float(mean_absolute_error(true_delta, pred_delta))
     pr, _  = stats.pearsonr(true_delta, pred_delta)
     sr, _  = stats.spearmanr(true_delta, pred_delta)
+    kr, _  = stats.kendalltau(true_delta, pred_delta)
     mask   = np.sign(true_delta) != 0
     n_eval = int(mask.sum())
     n_corr = int((np.sign(true_delta[mask]) == np.sign(pred_delta[mask])).sum())
+    _nz = true_delta != 0
+    if _nz.sum() > 1 and len(np.unique((true_delta[_nz] > 0).astype(int))) > 1:
+        delta_auc = float(roc_auc_score((true_delta[_nz] > 0).astype(int), pred_delta[_nz]))
+    else:
+        delta_auc = float("nan")
     return dict(
         n_pairs=len(true_delta),
         delta_pearson=float(pr),
         delta_spearman=float(sr),
+        delta_kendall=float(kr),
         delta_rmse=rmse,
         delta_mae=mae,
+        delta_auc=delta_auc,
         ordering_acc=float(n_corr / n_eval) if n_eval > 0 else float("nan"),
         n_correct=n_corr,
         n_evaluated=n_eval,
@@ -341,8 +351,16 @@ def stereo_ordering_accuracy(
     pred_sign = np.sign(pred_delta)
     correct   = (true_sign == pred_sign).sum()
     n_pairs   = len(delta_B)
-    pr, _     = stats.pearsonr(delta_B, pred_delta)
-    sr, _     = stats.spearmanr(delta_B, pred_delta)
+    pr, _  = stats.pearsonr(delta_B, pred_delta)
+    sr, _  = stats.spearmanr(delta_B, pred_delta)
+    kr, _  = stats.kendalltau(delta_B, pred_delta)
+    rmse   = float(np.sqrt(mean_squared_error(delta_B, pred_delta)))
+    mae    = float(mean_absolute_error(delta_B, pred_delta))
+    _nz    = delta_B != 0
+    if _nz.sum() > 1 and len(np.unique((delta_B[_nz] > 0).astype(int))) > 1:
+        delta_auc = float(roc_auc_score((delta_B[_nz] > 0).astype(int), pred_delta[_nz]))
+    else:
+        delta_auc = float("nan")
 
     return dict(
         n_pairs=n_pairs,
@@ -350,6 +368,10 @@ def stereo_ordering_accuracy(
         ordering_acc=float(correct / n_pairs),
         delta_pearson=float(pr),
         delta_spearman=float(sr),
+        delta_kendall=float(kr),
+        delta_rmse=rmse,
+        delta_mae=mae,
+        delta_auc=delta_auc,
         mean_true_delta=float(delta_B.mean()),
         mean_pred_delta=float(pred_delta.mean()),
     )
