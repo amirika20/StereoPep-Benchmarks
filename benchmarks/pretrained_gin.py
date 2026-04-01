@@ -39,7 +39,7 @@ import numpy as np
 from datasets import load_dataset as hf_load_dataset
 from rdkit import Chem
 from scipy import stats
-from sklearn.metrics import mean_absolute_error, mean_squared_error
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, roc_auc_score
 from torch_geometric.data import Data, Batch
 from torch_geometric.nn import MessagePassing, global_mean_pool
 from torch_geometric.utils import add_self_loops
@@ -385,11 +385,14 @@ def predict(model: GINPredictor, graphs: list[Data]) -> np.ndarray:
 
 def regression_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
     return {
-        "rmse":     float(np.sqrt(mean_squared_error(y_true, y_pred))),
-        "mae":      float(mean_absolute_error(y_true, y_pred)),
-        "pearson":  stats.pearsonr(y_true, y_pred)[0],
-        "spearman": stats.spearmanr(y_true, y_pred)[0],
-        "kendall":  stats.kendalltau(y_true, y_pred)[0],
+        "mse":        float(mean_squared_error(y_true, y_pred)),
+        "rmse":       float(np.sqrt(mean_squared_error(y_true, y_pred))),
+        "mae":        float(mean_absolute_error(y_true, y_pred)),
+        "mean_error": float(np.mean(y_pred - y_true)),
+        "r2":         float(r2_score(y_true, y_pred)),
+        "pearson":    float(stats.pearsonr(y_true, y_pred)[0]),
+        "spearman":   float(stats.spearmanr(y_true, y_pred)[0]),
+        "kendall":    float(stats.kendalltau(y_true, y_pred)[0]),
     }
 
 
@@ -399,15 +402,23 @@ def pair_delta_metrics(true_delta: np.ndarray, pred_delta: np.ndarray) -> dict:
     mae    = float(mean_absolute_error(true_delta, pred_delta))
     pr, _  = stats.pearsonr(true_delta, pred_delta)
     sr, _  = stats.spearmanr(true_delta, pred_delta)
+    kr, _  = stats.kendalltau(true_delta, pred_delta)
     mask   = np.sign(true_delta) != 0
     n_eval = int(mask.sum())
     n_corr = int((np.sign(true_delta[mask]) == np.sign(pred_delta[mask])).sum())
+    _nz = true_delta != 0
+    if _nz.sum() > 1 and len(np.unique((true_delta[_nz] > 0).astype(int))) > 1:
+        delta_auc = float(roc_auc_score((true_delta[_nz] > 0).astype(int), pred_delta[_nz]))
+    else:
+        delta_auc = float("nan")
     return dict(
         n_pairs=len(true_delta),
         delta_pearson=float(pr),
         delta_spearman=float(sr),
+        delta_kendall=float(kr),
         delta_rmse=rmse,
         delta_mae=mae,
+        delta_auc=delta_auc,
         ordering_acc=float(n_corr / n_eval) if n_eval > 0 else float("nan"),
         n_correct=n_corr,
         n_evaluated=n_eval,
@@ -437,8 +448,16 @@ def stereo_ordering_accuracy(model: GINPredictor, stereo_ds) -> dict:
     correct   = int((true_sign == pred_sign).sum())
     total     = int(mask.sum())
 
-    pr = stats.pearsonr(delta_B[mask], pred_delta[mask])[0]
-    sr = stats.spearmanr(delta_B[mask], pred_delta[mask])[0]
+    pr   = stats.pearsonr(delta_B[mask], pred_delta[mask])[0]
+    sr   = stats.spearmanr(delta_B[mask], pred_delta[mask])[0]
+    kr   = stats.kendalltau(delta_B[mask], pred_delta[mask])[0]
+    rmse = float(np.sqrt(mean_squared_error(delta_B[mask], pred_delta[mask])))
+    mae  = float(mean_absolute_error(delta_B[mask], pred_delta[mask]))
+    _nz  = delta_B[mask] != 0
+    if _nz.sum() > 1 and len(np.unique((delta_B[mask][_nz] > 0).astype(int))) > 1:
+        delta_auc = float(roc_auc_score((delta_B[mask][_nz] > 0).astype(int), pred_delta[mask][_nz]))
+    else:
+        delta_auc = float("nan")
 
     return {
         "n_pairs":         total,
@@ -446,6 +465,10 @@ def stereo_ordering_accuracy(model: GINPredictor, stereo_ds) -> dict:
         "ordering_acc":    correct / total if total > 0 else float("nan"),
         "delta_pearson":   float(pr),
         "delta_spearman":  float(sr),
+        "delta_kendall":   float(kr),
+        "delta_rmse":      rmse,
+        "delta_mae":       mae,
+        "delta_auc":       delta_auc,
         "mean_true_delta": float(delta_B[mask].mean()),
         "mean_pred_delta": float(pred_delta[mask].mean()),
     }

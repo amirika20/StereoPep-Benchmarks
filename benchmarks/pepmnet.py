@@ -43,7 +43,7 @@ from datasets import load_dataset as hf_load_dataset
 from rdkit import Chem
 from rdkit.Chem import Crippen, Descriptors
 from scipy import stats
-from sklearn.metrics import mean_absolute_error, mean_squared_error
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.preprocessing import OneHotEncoder
 from torch.utils.data import DataLoader
 from torch_geometric.nn import ARMAConv, NNConv, global_add_pool
@@ -685,12 +685,16 @@ def predict(model: PepMNetRT, samples: list[PepMNetSample]) -> np.ndarray:
 # ── metrics ────────────────────────────────────────────────────────────────────
 
 def regression_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
+    mse = float(mean_squared_error(y_true, y_pred))
     return {
-        "rmse":     float(np.sqrt(mean_squared_error(y_true, y_pred))),
-        "mae":      float(mean_absolute_error(y_true, y_pred)),
-        "pearson":  float(stats.pearsonr(y_true, y_pred)[0]),
-        "spearman": float(stats.spearmanr(y_true, y_pred)[0]),
-        "kendall":  float(stats.kendalltau(y_true, y_pred)[0]),
+        "mse":        mse,
+        "rmse":       float(np.sqrt(mse)),
+        "mae":        float(mean_absolute_error(y_true, y_pred)),
+        "mean_error": float(np.mean(y_pred - y_true)),
+        "r2":         float(r2_score(y_true, y_pred)),
+        "pearson":    float(stats.pearsonr(y_true, y_pred)[0]),
+        "spearman":   float(stats.spearmanr(y_true, y_pred)[0]),
+        "kendall":    float(stats.kendalltau(y_true, y_pred)[0]),
     }
 
 

@@ -48,7 +48,7 @@ import torch
 import torch.nn as nn
 from datasets import load_dataset as hf_load_dataset
 from scipy import stats
-from sklearn.metrics import mean_absolute_error, mean_squared_error
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, roc_auc_score
 from torch.utils.data import DataLoader, Dataset, TensorDataset
 from tqdm import tqdm
 
@@ -279,12 +279,14 @@ def evaluate(model: MLP, embeddings: np.ndarray, y: np.ndarray) -> dict:
             preds.append(model(batch.to(DEVICE)).cpu())
     preds   = torch.cat(preds).numpy()
     targets = y
-    rmse    = float(np.sqrt(mean_squared_error(targets, preds)))
+    mse     = float(mean_squared_error(targets, preds))
+    rmse    = float(np.sqrt(mse))
     mae     = float(mean_absolute_error(targets, preds))
     r,   _  = stats.pearsonr(targets, preds)
     rho, _  = stats.spearmanr(targets, preds)
     tau, _  = stats.kendalltau(targets, preds)
-    return dict(rmse=rmse, mae=mae, pearson=r, spearman=rho, kendall=tau)
+    return dict(mse=mse, rmse=rmse, mae=mae, mean_error=float(np.mean(preds - targets)),
+                r2=float(r2_score(targets, preds)), pearson=float(r), spearman=float(rho), kendall=float(tau))
 
 
 def stereo_ordering_accuracy(mlp: MLP, model, tok, stereo_ds) -> dict:
@@ -312,8 +314,16 @@ def stereo_ordering_accuracy(mlp: MLP, model, tok, stereo_ds) -> dict:
     correct   = (true_order[mask] == pred_order[mask]).sum()
     n_eval    = mask.sum()
     acc       = correct / n_eval if n_eval > 0 else float("nan")
-    pr, _     = stats.pearsonr(true_delta, pred_delta)
-    sr, _     = stats.spearmanr(true_delta, pred_delta)
+    pr, _  = stats.pearsonr(true_delta, pred_delta)
+    sr, _  = stats.spearmanr(true_delta, pred_delta)
+    kr, _  = stats.kendalltau(true_delta, pred_delta)
+    rmse   = float(np.sqrt(mean_squared_error(true_delta, pred_delta)))
+    mae    = float(mean_absolute_error(true_delta, pred_delta))
+    _nz    = true_delta != 0
+    if _nz.sum() > 1 and len(np.unique((true_delta[_nz] > 0).astype(int))) > 1:
+        delta_auc = float(roc_auc_score((true_delta[_nz] > 0).astype(int), pred_delta[_nz]))
+    else:
+        delta_auc = float("nan")
 
     return dict(
         n_pairs=len(seqs_f),
@@ -324,6 +334,10 @@ def stereo_ordering_accuracy(mlp: MLP, model, tok, stereo_ds) -> dict:
         ordering_acc=float(acc),
         delta_pearson=float(pr),
         delta_spearman=float(sr),
+        delta_kendall=float(kr),
+        delta_rmse=rmse,
+        delta_mae=mae,
+        delta_auc=delta_auc,
         mean_true_delta=float(true_delta.mean()),
         mean_pred_delta=float(pred_delta.mean()),
     )
@@ -335,15 +349,23 @@ def pair_delta_metrics(true_delta: np.ndarray, pred_delta: np.ndarray) -> dict:
     mae    = float(mean_absolute_error(true_delta, pred_delta))
     pr, _  = stats.pearsonr(true_delta, pred_delta)
     sr, _  = stats.spearmanr(true_delta, pred_delta)
+    kr, _  = stats.kendalltau(true_delta, pred_delta)
     mask   = np.sign(true_delta) != 0
     n_eval = int(mask.sum())
     n_corr = int((np.sign(true_delta[mask]) == np.sign(pred_delta[mask])).sum())
+    _nz = true_delta != 0
+    if _nz.sum() > 1 and len(np.unique((true_delta[_nz] > 0).astype(int))) > 1:
+        delta_auc = float(roc_auc_score((true_delta[_nz] > 0).astype(int), pred_delta[_nz]))
+    else:
+        delta_auc = float("nan")
     return dict(
         n_pairs=len(true_delta),
         delta_pearson=float(pr),
         delta_spearman=float(sr),
+        delta_kendall=float(kr),
         delta_rmse=rmse,
         delta_mae=mae,
+        delta_auc=delta_auc,
         ordering_acc=float(n_corr / n_eval) if n_eval > 0 else float("nan"),
         n_correct=n_corr,
         n_evaluated=n_eval,
