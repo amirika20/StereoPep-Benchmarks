@@ -1,0 +1,31 @@
+\begin{table}[t]
+\centering
+\caption{Pearson, Spearman, and Kendall correlations between peptide biophysical
+descriptors and retention time (\%B) on the PepTag training set ($N=41{,}455$).
+Features are sorted by $|\rho_S|$ in descending order.
+All correlations are statistically significant ($p < 10^{-90}$).}
+\label{tab:biophysical_correlation}
+\setlength{\tabcolsep}{8pt}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Feature} & \textbf{Pearson $r$} & \textbf{Spearman $\rho$} & \textbf{Kendall $\tau$} \\
+\midrule
+GRAVY (Kyte--Doolittle)   & $+0.488$ & $+0.513$ & $+0.356$ \\
+Molecular weight           & $+0.402$ & $+0.486$ & $+0.334$ \\
+Hydrophobic fraction       & $+0.355$ & $+0.408$ & $+0.284$ \\
+Sequence length            & $+0.335$ & $+0.402$ & $+0.288$ \\
+Charge (pH\,2)             & $-0.282$ & $-0.380$ & $-0.264$ \\
+Mean LogP                  & $+0.358$ & $+0.377$ & $+0.257$ \\
+Mean H-bond donors         & $-0.337$ & $-0.359$ & $-0.248$ \\
+Isoelectric point (pI)     & $-0.255$ & $-0.336$ & $-0.232$ \\
+Charge (pH\,7)             & $-0.184$ & $-0.331$ & $-0.227$ \\
+Mean H-bond acceptors      & $-0.267$ & $-0.254$ & $-0.179$ \\
+Mean rotatable bonds       & $+0.200$ & $+0.233$ & $+0.157$ \\
+Mean TPSA                  & $-0.216$ & $-0.214$ & $-0.146$ \\
+Charged fraction           & $-0.222$ & $-0.212$ & $-0.146$ \\
+Aromatic fraction          & $+0.149$ & $+0.143$ & $+0.099$ \\
+Proline fraction           & $-0.147$ & $-0.119$ & $-0.091$ \\
+Mean ring count            & $-0.102$ & $-0.110$ & $-0.070$ \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -80,10 +80,10 @@ SBATCH_SCRIPT=$(mktemp /tmp/deeprt_submit.XXXXXX.sh)
 cat > "$SBATCH_SCRIPT" <<SBATCH_EOF
 #!/bin/bash
 #SBATCH --job-name=$JOB_NAME
-#SBATCH --partition=<your_partition>_h100
+#SBATCH --partition=<your_partition>
 #SBATCH --account=<your_account>
 #SBATCH --time=$TIME
-#SBATCH --gres=gpu:nvidia_h100_80gb_hbm3:$GPUS
+#SBATCH --gres=gpu:$GPUS
 #SBATCH --mem=$MEM
 #SBATCH --cpus-per-task=4
 #SBATCH --nodes=1
