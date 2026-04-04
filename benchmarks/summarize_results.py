@@ -482,6 +482,172 @@ def print_pair_table(df: pd.DataFrame):
 
 
 # ---------------------------------------------------------------------------
+# 7. LaTeX table generation
+# ---------------------------------------------------------------------------
+def _latex_table(
+    df: pd.DataFrame,
+    columns: list[tuple[str, str]],   # [(metric_key, header), ...]
+    caption: str,
+    label: str,
+) -> str:
+    """
+    Build a NeurIPS-compliant LaTeX table.
+
+    Follows NeurIPS formatting rules:
+    - Caption (lower-case except first word) placed BEFORE the tabular.
+    - No vertical rules anywhere.
+    - Only \toprule, \midrule (after header), \bottomrule — no rules between rows.
+    - Column headers rotated 45° to save horizontal space.
+    - Each data cell uses \makecell: mean on line 1, ±std on line 2.
+    - Best value per column is bold.
+    - Whole table set in \small.
+
+    Required packages:
+        \\usepackage{booktabs}
+        \\usepackage{makecell}
+        \\usepackage{graphicx}
+    """
+    def _higher(key: str) -> bool:
+        low_keys = {"mse", "rmse", "mae", "mean_error", "error"}
+        return not any(k in key.lower() for k in low_keys)
+
+    # Determine best row index per metric column
+    best: dict[str, int] = {}
+    for key, _ in columns:
+        mc = f"{key}_mean"
+        if mc not in df.columns or df[mc].isna().all():
+            continue
+        vals = df[mc].values.astype(float)
+        with np.errstate(invalid="ignore"):
+            best[key] = int(np.nanargmax(vals) if _higher(key) else np.nanargmin(vals))
+
+    # No vertical rules — l for model name, c for each metric
+    col_spec = "l" + "c" * len(columns)
+
+    # Rotated headers to keep columns narrow
+    rotated_headers = " & ".join(
+        [r"\textbf{Model}"]
+        + [r"\rotatebox{45}{\textbf{" + h + r"}}" for _, h in columns]
+    )
+
+    rows_tex = []
+    for ridx, (_, row) in enumerate(df.iterrows()):
+        cells = [row["model"].replace("_", r"\_")]
+        for key, _ in columns:
+            mc, sc = f"{key}_mean", f"{key}_std"
+            if mc not in df.columns or pd.isna(row.get(mc)):
+                cells.append("--")
+            else:
+                mean_str = f"{row[mc]:.4f}"
+                std_str  = f"$\\pm${row[sc]:.4f}"
+                cell = r"\makecell{" + mean_str + r" \\ " + std_str + r"}"
+                if best.get(key) == ridx:
+                    cell = r"\textbf{" + cell + r"}"
+                cells.append(cell)
+        # NeurIPS: no \midrule between data rows
+        rows_tex.append("  " + " & ".join(cells) + r" \\")
+
+    body = "\n".join(rows_tex)
+
+    tex = (
+        r"\begin{table}[htbp]" + "\n"
+        r"  \caption{" + caption + r"}" + "\n"
+        r"  \label{" + label + r"}" + "\n"
+        r"  \centering" + "\n"
+        r"  \small" + "\n"
+        r"  \begin{tabular}{" + col_spec + r"}" + "\n"
+        r"    \toprule" + "\n"
+        f"    {rotated_headers} \\\\\n"
+        r"    \midrule" + "\n"
+        + body + "\n"
+        r"    \bottomrule" + "\n"
+        r"  \end{tabular}" + "\n"
+        r"\end{table}" + "\n"
+    )
+    return tex
+
+
+def save_latex_tables(df: pd.DataFrame):
+    """Write four .tex files — one per evaluation category."""
+
+    tables = [
+        # ---- 1. Overall regression performance --------------------------------
+        (
+            [
+                ("pearson",    "Pearson $r$"),
+                ("spearman",   "Spearman $\\rho$"),
+                ("kendall",    "Kendall $\\tau$"),
+                ("r2",         "$R^2$"),
+                ("rmse",       "RMSE"),
+                ("mae",        "MAE"),
+                ("mse",        "MSE"),
+                ("mean_error", "Mean Error"),
+            ],
+            "Overall regression performance on B\\% prediction (mean $\\pm$ std over seeds; "
+            "bold denotes best per column).",
+            "tab:overall_performance",
+            "latex_overall_performance.tex",
+        ),
+        # ---- 2. Diastereomer performance --------------------------------------
+        (
+            [
+                ("ordering_acc",   "Pairwise Acc."),
+                ("delta_pearson",  "$\\Delta$ Pearson"),
+                ("delta_spearman", "$\\Delta$ Spearman"),
+                ("delta_kendall",  "$\\Delta$ Kendall"),
+                ("delta_auc",      "$\\Delta$ AUC"),
+                ("delta_rmse",     "$\\Delta$ RMSE"),
+                ("delta_mae",      "$\\Delta$ MAE"),
+            ],
+            "Diastereomer-pair performance (D/L-Phe pairs; mean $\\pm$ std over seeds; "
+            "bold denotes best per column).",
+            "tab:diastereomer_performance",
+            "latex_diastereomer_performance.tex",
+        ),
+        # ---- 3. Point-mutation (substitution) performance ---------------------
+        (
+            [
+                ("sub_ordering_acc",   "Pairwise Acc."),
+                ("sub_delta_pearson",  "$\\Delta$ Pearson"),
+                ("sub_delta_spearman", "$\\Delta$ Spearman"),
+                ("sub_delta_kendall",  "$\\Delta$ Kendall"),
+                ("sub_delta_auc",      "$\\Delta$ AUC"),
+                ("sub_delta_rmse",     "$\\Delta$ RMSE"),
+                ("sub_delta_mae",      "$\\Delta$ MAE"),
+            ],
+            "Point-mutation pair performance (single amino-acid substitutions; "
+            "mean $\\pm$ std over seeds; bold denotes best per column).",
+            "tab:point_mutation_performance",
+            "latex_point_mutation_performance.tex",
+        ),
+        # ---- 4. Tagging (addition-mutation) performance -----------------------
+        (
+            [
+                ("tag_ordering_acc",   "Pairwise Acc."),
+                ("tag_delta_pearson",  "$\\Delta$ Pearson"),
+                ("tag_delta_spearman", "$\\Delta$ Spearman"),
+                ("tag_delta_kendall",  "$\\Delta$ Kendall"),
+                ("tag_delta_auc",      "$\\Delta$ AUC"),
+                ("tag_delta_rmse",     "$\\Delta$ RMSE"),
+                ("tag_delta_mae",      "$\\Delta$ MAE"),
+            ],
+            "Tagging (addition-mutation) pair performance (peptides with/without "
+            "F/f tag; mean $\\pm$ std over seeds; bold denotes best per column).",
+            "tab:tagging_performance",
+            "latex_tagging_performance.tex",
+        ),
+    ]
+
+    print("\nGenerating LaTeX tables …")
+    for cols, caption, label, fname in tables:
+        tex = _latex_table(df, cols, caption, label)
+        path = os.path.join(METRICS_DIR, fname)
+        with open(path, "w") as f:
+            f.write(tex)
+        print(f"  Saved: {path}")
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 def main():
@@ -495,6 +661,9 @@ def main():
     # Console tables
     print_table(df)
     print_pair_table(df)
+
+    # LaTeX tables
+    save_latex_tables(df)
 
     # -----------------------------------------------------------------------
     # Figures

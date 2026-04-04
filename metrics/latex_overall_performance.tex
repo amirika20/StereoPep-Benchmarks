@@ -1,0 +1,21 @@
+\begin{table}[htbp]
+  \caption{Overall regression performance on B\% prediction (mean $\pm$ std over seeds; bold denotes best per column).}
+  \label{tab:overall_performance}
+  \centering
+  \small
+  \begin{tabular}{lcccccccc}
+    \toprule
+    \textbf{Model} & \rotatebox{45}{\textbf{Pearson $r$}} & \rotatebox{45}{\textbf{Spearman $\rho$}} & \rotatebox{45}{\textbf{Kendall $\tau$}} & \rotatebox{45}{\textbf{$R^2$}} & \rotatebox{45}{\textbf{RMSE}} & \rotatebox{45}{\textbf{MAE}} & \rotatebox{45}{\textbf{MSE}} & \rotatebox{45}{\textbf{Mean Error}} \\
+    \midrule
+  GIN & \makecell{0.7705 \\ $\pm$0.0277} & \makecell{0.8181 \\ $\pm$0.0307} & \makecell{0.6420 \\ $\pm$0.0307} & -- & \makecell{6.8764 \\ $\pm$0.3954} & \makecell{4.6272 \\ $\pm$0.3021} & -- & -- \\
+  Pretrained GIN & \makecell{0.7173 \\ $\pm$0.0136} & \makecell{0.7718 \\ $\pm$0.0184} & \makecell{0.5856 \\ $\pm$0.0173} & -- & \makecell{7.7217 \\ $\pm$0.1680} & \makecell{5.2899 \\ $\pm$0.1098} & -- & -- \\
+  ESM3-small & \makecell{0.7908 \\ $\pm$0.0066} & \makecell{0.8297 \\ $\pm$0.0071} & \makecell{0.6439 \\ $\pm$0.0079} & -- & \makecell{7.9627 \\ $\pm$0.3974} & \makecell{5.5790 \\ $\pm$0.3562} & -- & -- \\
+  ESMC-300M & \makecell{0.7662 \\ $\pm$0.0087} & \makecell{0.8231 \\ $\pm$0.0083} & \makecell{0.6390 \\ $\pm$0.0087} & -- & \makecell{8.0667 \\ $\pm$0.1717} & \makecell{5.5738 \\ $\pm$0.1314} & -- & -- \\
+  ESMC-600M & \makecell{0.7592 \\ $\pm$0.0100} & \makecell{0.8218 \\ $\pm$0.0062} & \makecell{0.6369 \\ $\pm$0.0054} & -- & \makecell{8.3782 \\ $\pm$0.2730} & \makecell{5.9234 \\ $\pm$0.2357} & -- & -- \\
+  Transformer & \makecell{0.7563 \\ $\pm$0.0301} & \makecell{0.8000 \\ $\pm$0.0307} & \makecell{0.6133 \\ $\pm$0.0309} & -- & \makecell{7.2218 \\ $\pm$0.4679} & \makecell{5.0907 \\ $\pm$0.3715} & -- & -- \\
+  DeepLC & \textbf{\makecell{0.8062 \\ $\pm$0.0146}} & \textbf{\makecell{0.8525 \\ $\pm$0.0111}} & \textbf{\makecell{0.6755 \\ $\pm$0.0160}} & -- & \textbf{\makecell{6.5658 \\ $\pm$0.3476}} & \textbf{\makecell{4.5727 \\ $\pm$0.2838}} & -- & -- \\
+  DeepRT-CapsNet & \makecell{0.7590 \\ $\pm$0.0259} & \makecell{0.7947 \\ $\pm$0.0299} & \makecell{0.6034 \\ $\pm$0.0327} & -- & \makecell{7.1691 \\ $\pm$0.3040} & \makecell{5.1704 \\ $\pm$0.2735} & -- & -- \\
+  Morgan FP MLP & \makecell{0.5063 \\ $\pm$0.0214} & \makecell{0.5337 \\ $\pm$0.0259} & \makecell{0.3769 \\ $\pm$0.0187} & -- & \makecell{9.3837 \\ $\pm$0.1808} & \makecell{6.8656 \\ $\pm$0.1544} & -- & -- \\
+    \bottomrule
+  \end{tabular}
+\end{table}

@@ -1,0 +1,21 @@
+\begin{table}[htbp]
+  \caption{Diastereomer-pair performance (D/L-Phe pairs; mean $\pm$ std over seeds; bold denotes best per column).}
+  \label{tab:diastereomer_performance}
+  \centering
+  \small
+  \begin{tabular}{lccccccc}
+    \toprule
+    \textbf{Model} & \rotatebox{45}{\textbf{Pairwise Acc.}} & \rotatebox{45}{\textbf{$\Delta$ Pearson}} & \rotatebox{45}{\textbf{$\Delta$ Spearman}} & \rotatebox{45}{\textbf{$\Delta$ Kendall}} & \rotatebox{45}{\textbf{$\Delta$ AUC}} & \rotatebox{45}{\textbf{$\Delta$ RMSE}} & \rotatebox{45}{\textbf{$\Delta$ MAE}} \\
+    \midrule
+  GIN & \textbf{\makecell{0.6664 \\ $\pm$0.0391}} & \textbf{\makecell{0.1619 \\ $\pm$0.1317}} & \textbf{\makecell{0.2030 \\ $\pm$0.1583}} & -- & -- & -- & -- \\
+  Pretrained GIN & \makecell{0.6493 \\ $\pm$0.0117} & \makecell{0.1336 \\ $\pm$0.0861} & \makecell{0.1572 \\ $\pm$0.0943} & -- & -- & -- & -- \\
+  ESM3-small & \makecell{0.6192 \\ $\pm$0.0229} & \makecell{0.0217 \\ $\pm$0.0458} & \makecell{0.0371 \\ $\pm$0.0762} & -- & -- & -- & -- \\
+  ESMC-300M & \makecell{0.5956 \\ $\pm$0.0251} & \makecell{0.0825 \\ $\pm$0.0570} & \makecell{0.1080 \\ $\pm$0.0538} & -- & -- & -- & -- \\
+  ESMC-600M & \makecell{0.5533 \\ $\pm$0.0228} & \makecell{-0.0545 \\ $\pm$0.0478} & \makecell{-0.0640 \\ $\pm$0.0430} & -- & -- & -- & -- \\
+  Transformer & \makecell{0.5600 \\ $\pm$0.1043} & \makecell{0.0781 \\ $\pm$0.1363} & \makecell{0.0910 \\ $\pm$0.1473} & -- & -- & -- & -- \\
+  DeepLC & \makecell{0.6269 \\ $\pm$0.0875} & \makecell{0.0171 \\ $\pm$0.1192} & \makecell{0.0362 \\ $\pm$0.1377} & -- & -- & -- & -- \\
+  DeepRT-CapsNet & \makecell{0.4708 \\ $\pm$0.0968} & \makecell{-0.0488 \\ $\pm$0.0812} & \makecell{-0.0430 \\ $\pm$0.0794} & -- & -- & -- & -- \\
+  Morgan FP MLP & \makecell{0.6188 \\ $\pm$0.0231} & \makecell{-0.0384 \\ $\pm$0.0503} & \makecell{-0.0278 \\ $\pm$0.0426} & -- & -- & -- & -- \\
+    \bottomrule
+  \end{tabular}
+\end{table}
