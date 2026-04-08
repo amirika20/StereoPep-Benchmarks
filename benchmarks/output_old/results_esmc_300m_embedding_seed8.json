@@ -1,0 +1,67 @@
+{
+  "benchmark": "results_esmc_300m_embedding",
+  "seed": 8,
+  "timestamp": "2026-03-25 23:15:47",
+  "config": {
+    "esm_model": "esmc_300m_2024_12",
+    "model_family": "esmc",
+    "emb_dim": 960,
+    "hidden_dim": 512,
+    "n_layers": 3,
+    "dropout": 0.1,
+    "lr": 0.001,
+    "weight_decay": 0.0001,
+    "train_batch": 32,
+    "max_epochs": 1000,
+    "patience": 100,
+    "lr_patience": 10,
+    "device": "cuda"
+  },
+  "training": {
+    "epochs_run": 157,
+    "best_val_loss": 30.44846184434305
+  },
+  "test_metrics": {
+    "rmse": 8.149980378858666,
+    "mae": 5.6358466148376465,
+    "pearson": 0.7638856172561646,
+    "spearman": 0.8163194842036318,
+    "kendall": 0.632002800083464
+  },
+  "stereo_metrics": {
+    "n_pairs": 542,
+    "n_tied_true": 0,
+    "n_tied_pred": 0,
+    "n_evaluated": 542,
+    "n_correct": 328,
+    "ordering_acc": 0.6051660516605166,
+    "delta_pearson": -0.044470186909823725,
+    "delta_spearman": 0.0003861460577208278,
+    "mean_true_delta": 2.309785781570318,
+    "mean_pred_delta": 1.4889395236968994
+  },
+  "tag_pair_metrics": {
+    "n_pairs": 1549,
+    "delta_pearson": 0.37492620357318424,
+    "delta_spearman": 0.42246906788026894,
+    "delta_rmse": 6.432963446216364,
+    "delta_mae": 4.413706724162875,
+    "ordering_acc": 0.9464170432537121,
+    "n_correct": 1466,
+    "n_evaluated": 1549,
+    "mean_true_delta": -9.318920401692854,
+    "mean_pred_delta": -7.4537672996521
+  },
+  "substitution_pair_metrics": {
+    "n_pairs": 6942,
+    "delta_pearson": 0.3879183916342956,
+    "delta_spearman": 0.4370321873333239,
+    "delta_rmse": 7.568499275389458,
+    "delta_mae": 5.21074197188187,
+    "ordering_acc": 0.7252953039469894,
+    "n_correct": 5035,
+    "n_evaluated": 6942,
+    "mean_true_delta": -2.2433541624651894,
+    "mean_pred_delta": -1.2384384870529175
+  }
+}

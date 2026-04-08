@@ -79,6 +79,7 @@ LR_PATIENCE  = 10
 DEVICE       = "cuda" if torch.cuda.is_available() else "cpu"
 
 RESULTS_DIR = Path(__file__).parent / "output"
+WEIGHTS_DIR = Path(__file__).parent / "weights"
 
 # Uppercase fallback map for non-standard single-letter codes
 _AA_UPPER_MAP: dict[str, str] = {
@@ -764,6 +765,7 @@ class _NpEncoder(json.JSONEncoder):
 def save_results(
     seed: int,
     test_metrics: dict,
+    train_metrics: dict,
     stereo_metrics: dict,
     training: dict,
     config: dict,
@@ -777,6 +779,7 @@ def save_results(
         "config":    config,
         "training":  training,
         "test_metrics":   test_metrics,
+        "train_metrics":  train_metrics,
         "stereo_metrics": stereo_metrics,
     }
     out = output_dir / f"{stem}_seed{seed}.json"
@@ -817,6 +820,7 @@ def run_one_seed(
     train_samples: list[PepMNetSample],
     val_samples:   list[PepMNetSample],
     test_samples:  list[PepMNetSample],
+    y_train: np.ndarray,
     y_test: np.ndarray,
     stereo_ds,
     node_ft_dict: dict,
@@ -825,6 +829,7 @@ def run_one_seed(
     node_dim: int,
     edge_dim: int,
     aa_feat_dim: int,
+    weights_path: Path | None = None,
 ) -> tuple[dict, dict, list[dict]]:
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -842,11 +847,27 @@ def run_one_seed(
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"  PepMNetRT | {n_params:,} params | node_dim={node_dim} edge_dim={edge_dim} aa_feat_dim={aa_feat_dim}")
 
-    history      = train(model, train_loader, val_loader)
+    if weights_path is not None and weights_path.exists():
+        print(f"  [weights] Loading from {weights_path} — skipping training")
+        ckpt    = torch.load(weights_path, map_location=DEVICE, weights_only=False)
+        model.load_state_dict(ckpt["state_dict"])
+        model.eval()
+        history = ckpt["history"]
+    else:
+        history = train(model, train_loader, val_loader)
+        if weights_path is not None:
+            weights_path.parent.mkdir(parents=True, exist_ok=True)
+            torch.save({"state_dict": model.state_dict(), "history": history}, weights_path)
+            print(f"  [weights] Saved to {weights_path}")
+
     y_pred_test  = predict(model, test_samples)
     test_metrics = regression_metrics(y_test, y_pred_test)
     print(f"  RMSE={test_metrics['rmse']:.4f}  Pearson={test_metrics['pearson']:+.4f}"
           f"  Spearman={test_metrics['spearman']:+.4f}")
+
+    y_pred_train  = predict(model, train_samples)
+    train_metrics = regression_metrics(y_train, y_pred_train)
+    print(f"  [train] RMSE={train_metrics['rmse']:.4f}  Pearson={train_metrics['pearson']:+.4f}")
 
     stereo_metrics = stereo_ordering_accuracy(
         model, stereo_ds, node_ft_dict, edge_ft_dict, aa_ft_dict, node_dim, edge_dim, aa_feat_dim
@@ -854,7 +875,7 @@ def run_one_seed(
     print(f"  Ordering accuracy: {stereo_metrics['ordering_acc']:.4f}"
           f"  ({stereo_metrics['n_correct']}/{stereo_metrics['n_pairs']})")
 
-    return test_metrics, stereo_metrics, history
+    return test_metrics, train_metrics, stereo_metrics, history
 
 
 def main() -> None:
@@ -891,13 +912,16 @@ def main() -> None:
     test_samples  = encode_sequences(
         ds["test"]["Peptide"],  ds["test"]["B"],  desc="Graphs test ", **kwargs)
 
-    y_test = np.array(ds["test"]["B"], dtype=np.float32)[: len(test_samples)]
+    y_train = np.array(ds["train"]["B"], dtype=np.float32)[: len(train_samples)]
+    y_test  = np.array(ds["test"]["B"],  dtype=np.float32)[: len(test_samples)]
 
     print(f"  train={len(train_samples)}  val={len(val_samples)}  test={len(test_samples)}")
 
+    weights_path = WEIGHTS_DIR / f"results_pepmnet_seed{seed}.pt"
     print(f"\n── Seed {seed} ──")
-    test_metrics, stereo_metrics, history = run_one_seed(
-        seed, train_samples, val_samples, test_samples, y_test, stereo, **kwargs
+    test_metrics, train_metrics, stereo_metrics, history = run_one_seed(
+        seed, train_samples, val_samples, test_samples, y_train, y_test, stereo,
+        weights_path=weights_path, **kwargs
     )
 
     config = {
@@ -914,7 +938,7 @@ def main() -> None:
         "epochs_run":    history[-1]["epoch"],
         "best_val_loss": min(h["val_loss"] for h in history),
     }
-    save_results(seed, test_metrics, stereo_metrics, training, config,
+    save_results(seed, test_metrics, train_metrics, stereo_metrics, training, config,
                  RESULTS_DIR, "results_pepmnet")
     print(f"\nTotal time: {time.time() - t0:.1f}s")
 

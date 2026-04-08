@@ -67,6 +67,7 @@ LR_PATIENCE  = 10
 DEVICE       = "cuda" if torch.cuda.is_available() else "cpu"
 
 RESULTS_DIR  = Path(__file__).parent / "output"
+WEIGHTS_DIR  = Path(__file__).parent / "weights"
 
 
 # ── atom counts ────────────────────────────────────────────────────────────────
@@ -518,6 +519,7 @@ class _NpEncoder(json.JSONEncoder):
 def save_results(
     seed: int,
     test_metrics: dict,
+    train_metrics: dict,
     stereo_metrics: dict,
     tag_pair_metrics: dict,
     substitution_pair_metrics: dict,
@@ -533,6 +535,7 @@ def save_results(
         "config": config,
         "training": training,
         "test_metrics": test_metrics,
+        "train_metrics": train_metrics,
         "stereo_metrics": stereo_metrics,
         "tag_pair_metrics": tag_pair_metrics,
         "substitution_pair_metrics": substitution_pair_metrics,
@@ -549,11 +552,14 @@ def run_one_seed(
     seed: int,
     train_loader,
     val_loader,
+    aa_tr, dia_tr, oh_tr, gl_tr,
+    y_train: np.ndarray,
     aa_te, dia_te, oh_te, gl_te,
     y_test: np.ndarray,
     stereo,
     tag_pairs,
     sub_pairs,
+    weights_path: Path | None = None,
 ) -> tuple[dict, dict, dict, dict, dict]:
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -561,18 +567,40 @@ def run_one_seed(
     trained_models: list[DeepLC]     = []
     histories: dict[int, list[dict]] = {}
 
-    for K in KERNEL_SIZES:
-        print(f"  [train] kernel_size={K}")
-        model   = DeepLC(kernel_size=K).to(DEVICE)
-        history = train_one(model, train_loader, val_loader, K)
-        trained_models.append(model)
-        histories[K] = history
+    if weights_path is not None and weights_path.exists():
+        print(f"  [weights] Loading from {weights_path} — skipping training")
+        ckpt = torch.load(weights_path, map_location=DEVICE, weights_only=False)
+        for K in KERNEL_SIZES:
+            model = DeepLC(kernel_size=K).to(DEVICE)
+            model.load_state_dict(ckpt[f"kernel_{K}"])
+            model.eval()
+            trained_models.append(model)
+        histories = ckpt["histories"]
+    else:
+        for K in KERNEL_SIZES:
+            print(f"  [train] kernel_size={K}")
+            model   = DeepLC(kernel_size=K).to(DEVICE)
+            history = train_one(model, train_loader, val_loader, K)
+            trained_models.append(model)
+            histories[K] = history
+        if weights_path is not None:
+            weights_path.parent.mkdir(parents=True, exist_ok=True)
+            torch.save(
+                {f"kernel_{K}": m.state_dict() for K, m in zip(KERNEL_SIZES, trained_models)}
+                | {"histories": histories},
+                weights_path,
+            )
+            print(f"  [weights] Saved to {weights_path}")
 
     y_pred       = predict(trained_models, aa_te, dia_te, oh_te, gl_te)
     test_metrics = regression_metrics(y_test, y_pred)
     print(f"  RMSE={test_metrics['rmse']:.4f}  "
           f"Pearson={test_metrics['pearson']:+.4f}  "
           f"Spearman={test_metrics['spearman']:+.4f}")
+
+    y_pred_train  = predict(trained_models, aa_tr, dia_tr, oh_tr, gl_tr)
+    train_metrics = regression_metrics(y_train, y_pred_train)
+    print(f"  [train] RMSE={train_metrics['rmse']:.4f}  Pearson={train_metrics['pearson']:+.4f}")
 
     stereo_metrics = stereo_ordering_accuracy(trained_models, stereo)
     print(f"  Ordering accuracy: {stereo_metrics['ordering_acc']:.4f}  "
@@ -583,7 +611,7 @@ def run_one_seed(
     sub_metrics = eval_pair_metrics(trained_models, sub_pairs, "Sequence_1", "Sequence_2")
     print(f"  Substitution-pair delta Pearson: {sub_metrics['delta_pearson']:+.4f}")
 
-    return test_metrics, stereo_metrics, tag_metrics, sub_metrics, histories
+    return test_metrics, train_metrics, stereo_metrics, tag_metrics, sub_metrics, histories
 
 
 def main() -> None:
@@ -613,6 +641,7 @@ def main() -> None:
     aa_va, dia_va, oh_va, gl_va = encode_split(list(ds["val"]["Peptide"]),   "Val  ")
     aa_te, dia_te, oh_te, gl_te = encode_split(list(ds["test"]["Peptide"]),  "Test ")
 
+    y_train_np = np.array(ds["train"]["B"], dtype=np.float32)
     y_train = torch.tensor(ds["train"]["B"], dtype=torch.float32)
     y_val   = torch.tensor(ds["val"]["B"],   dtype=torch.float32)
     y_test  = np.array(ds["test"]["B"],      dtype=np.float32)
@@ -626,10 +655,13 @@ def main() -> None:
     train_loader = make_loader(aa_tr, dia_tr, oh_tr, gl_tr, y_train, shuffle=True)
     val_loader   = make_loader(aa_va, dia_va, oh_va, gl_va, y_val)
 
+    weights_path = WEIGHTS_DIR / f"results_deeplc_seed{seed}.pt"
     print(f"\n── Seed {seed} ──")
-    test_metrics, stereo_metrics, tag_metrics, sub_metrics, histories = run_one_seed(
+    test_metrics, train_metrics, stereo_metrics, tag_metrics, sub_metrics, histories = run_one_seed(
         seed, train_loader, val_loader,
+        aa_tr, dia_tr, oh_tr, gl_tr, y_train_np,
         aa_te, dia_te, oh_te, gl_te, y_test, stereo, tag_pairs, sub_pairs,
+        weights_path=weights_path,
     )
 
     print(f"\nTotal time: {time.time() - t0:.1f}s")
@@ -644,7 +676,7 @@ def main() -> None:
         f"kernel_{k}": {"epochs_run": hs[-1]["epoch"], "best_val_loss": min(h["val_loss"] for h in hs)}
         for k, hs in histories.items()
     }
-    save_results(seed, test_metrics, stereo_metrics, tag_metrics, sub_metrics,
+    save_results(seed, test_metrics, train_metrics, stereo_metrics, tag_metrics, sub_metrics,
                  training, config, RESULTS_DIR, "results_deeplc")
 
 
