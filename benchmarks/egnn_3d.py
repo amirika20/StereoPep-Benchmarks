@@ -74,6 +74,7 @@ LR_PATIENCE  = 10
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 RESULTS_DIR  = Path(__file__).parent / "output"
+WEIGHTS_DIR  = Path(__file__).parent / "weights"
 CACHE_DIR    = Path(__file__).parent / "cache" / "conformers"
 
 _CHIRALITY_MAP = {
@@ -614,6 +615,7 @@ class _NpEncoder(json.JSONEncoder):
 def save_results(
     seed: int,
     test_metrics: dict,
+    train_metrics: dict,
     stereo_metrics: dict,
     tag_pair_metrics: dict,
     sub_pair_metrics: dict,
@@ -629,6 +631,7 @@ def save_results(
         "config":                  config,
         "training":                training,
         "test_metrics":            test_metrics,
+        "train_metrics":           train_metrics,
         "stereo_metrics":          stereo_metrics,
         "tag_pair_metrics":        tag_pair_metrics,
         "substitution_pair_metrics": sub_pair_metrics,
@@ -654,6 +657,7 @@ def run_one_seed(
     sub_pairs,
     conf_seed: int = 42,
     cache_dir: Path | None = None,
+    weights_path: Path | None = None,
 ) -> tuple[dict, dict, dict, dict, list[dict]]:
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -673,11 +677,27 @@ def run_one_seed(
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"  Model parameters: {n_params:,}")
 
-    history      = train(model, train_loader, val_loader)
+    if weights_path is not None and weights_path.exists():
+        print(f"  [weights] Loading from {weights_path} — skipping training")
+        ckpt    = torch.load(weights_path, map_location=DEVICE, weights_only=False)
+        model.load_state_dict(ckpt["state_dict"])
+        model.eval()
+        history = ckpt["history"]
+    else:
+        history = train(model, train_loader, val_loader)
+        if weights_path is not None:
+            weights_path.parent.mkdir(parents=True, exist_ok=True)
+            torch.save({"state_dict": model.state_dict(), "history": history}, weights_path)
+            print(f"  [weights] Saved to {weights_path}")
+
     y_pred_test  = predict(model, graphs_test)
     test_metrics = regression_metrics(y_test, y_pred_test)
     print(f"  RMSE={test_metrics['rmse']:.4f}  Pearson={test_metrics['pearson']:+.4f}"
           f"  Spearman={test_metrics['spearman']:+.4f}")
+
+    y_pred_train  = predict(model, graphs_train)
+    train_metrics = regression_metrics(y_train, y_pred_train)
+    print(f"  [train] RMSE={train_metrics['rmse']:.4f}  Pearson={train_metrics['pearson']:+.4f}")
 
     stereo_metrics = stereo_ordering_accuracy(model, sp, conf_seed=conf_seed, cache_dir=cache_dir)
     print(f"  Stereo ordering acc: {stereo_metrics['ordering_acc']:.4f}"
@@ -695,7 +715,7 @@ def run_one_seed(
     )
     print(f"  Substitution-pair delta Pearson: {sub_metrics['delta_pearson']:+.4f}")
 
-    return test_metrics, stereo_metrics, tag_metrics, sub_metrics, history
+    return test_metrics, train_metrics, stereo_metrics, tag_metrics, sub_metrics, history
 
 
 def main() -> None:
@@ -750,14 +770,16 @@ def main() -> None:
     y_test  = np.array(ds["test"]["B"],  dtype=np.float32)
     print(f"  train={len(y_train)}  val={len(y_val)}  test={len(y_test)}")
 
+    weights_path = WEIGHTS_DIR / f"results_egnn_3d_seed{seed}.pt"
     print(f"\n── Seed {seed} ──")
-    test_m, stereo_m, tag_m, sub_m, history = run_one_seed(
+    test_m, train_m, stereo_m, tag_m, sub_m, history = run_one_seed(
         seed,
         graphs_train, graphs_val, graphs_test,
         y_train, y_val, y_test,
         sp, tag_pairs, sub_pairs,
         conf_seed=conf_seed,
         cache_dir=cache_dir,
+        weights_path=weights_path,
     )
 
     config = {
@@ -783,7 +805,7 @@ def main() -> None:
         "best_val_loss": min(h["val_loss"] for h in history),
     }
     save_results(
-        seed, test_m, stereo_m, tag_m, sub_m,
+        seed, test_m, train_m, stereo_m, tag_m, sub_m,
         training, config, RESULTS_DIR, "results_egnn_3d",
     )
 

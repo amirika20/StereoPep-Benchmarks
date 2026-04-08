@@ -61,8 +61,8 @@ PRETRAINED_URL = (
     "https://raw.githubusercontent.com/snap-stanford/pretrain-gnns"
     "/master/chem/model_gin/supervised_contextpred.pth"
 )
-WEIGHTS_DIR   = Path(__file__).parent / "pretrained_weights"
-WEIGHTS_FILE  = WEIGHTS_DIR / "gin_supervised_contextpred.pth"
+PRETRAINED_DIR  = Path(__file__).parent / "pretrained_weights"
+WEIGHTS_FILE    = PRETRAINED_DIR / "gin_supervised_contextpred.pth"
 
 # Fine-tuning
 HEAD_HIDDEN   = 256
@@ -78,6 +78,7 @@ LR_PATIENCE   = 10
 DEVICE        = "cuda" if torch.cuda.is_available() else "cpu"
 
 RESULTS_DIR   = Path(__file__).parent / "output"
+WEIGHTS_DIR   = Path(__file__).parent / "weights"
 
 
 # ── pretrained weight download ────────────────────────────────────────────────
@@ -86,7 +87,7 @@ def download_weights() -> None:
     if WEIGHTS_FILE.exists():
         print(f"  Weights already cached at {WEIGHTS_FILE}")
         return
-    WEIGHTS_DIR.mkdir(parents=True, exist_ok=True)
+    PRETRAINED_DIR.mkdir(parents=True, exist_ok=True)
     print(f"  Downloading pretrained GIN from snap-stanford …")
     try:
         urllib.request.urlretrieve(PRETRAINED_URL, WEIGHTS_FILE)
@@ -510,6 +511,7 @@ class _NpEncoder(json.JSONEncoder):
 def save_results(
     seed: int,
     test_metrics: dict,
+    train_metrics: dict,
     stereo_metrics: dict,
     tag_pair_metrics: dict,
     substitution_pair_metrics: dict,
@@ -525,6 +527,7 @@ def save_results(
         "config": config,
         "training": training,
         "test_metrics": test_metrics,
+        "train_metrics": train_metrics,
         "stereo_metrics": stereo_metrics,
         "tag_pair_metrics": tag_pair_metrics,
         "substitution_pair_metrics": substitution_pair_metrics,
@@ -548,6 +551,7 @@ def run_one_seed(
     sp,
     tag_pairs,
     sub_pairs,
+    weights_path: Path | None = None,
 ) -> tuple[dict, dict, dict, dict, list[dict]]:
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -562,13 +566,29 @@ def run_one_seed(
     )
 
     model = GINPredictor().to(DEVICE)
-    model.load_pretrained_encoder(WEIGHTS_FILE)
 
-    history      = train(model, train_loader, val_loader)
+    if weights_path is not None and weights_path.exists():
+        print(f"  [weights] Loading from {weights_path} — skipping training")
+        ckpt    = torch.load(weights_path, map_location=DEVICE, weights_only=False)
+        model.load_state_dict(ckpt["state_dict"])
+        model.eval()
+        history = ckpt["history"]
+    else:
+        model.load_pretrained_encoder(WEIGHTS_FILE)
+        history = train(model, train_loader, val_loader)
+        if weights_path is not None:
+            weights_path.parent.mkdir(parents=True, exist_ok=True)
+            torch.save({"state_dict": model.state_dict(), "history": history}, weights_path)
+            print(f"  [weights] Saved to {weights_path}")
+
     y_pred_test  = predict(model, graphs_test)
     test_metrics = regression_metrics(y_test, y_pred_test)
     print(f"  RMSE={test_metrics['rmse']:.4f}  Pearson={test_metrics['pearson']:+.4f}"
           f"  Spearman={test_metrics['spearman']:+.4f}")
+
+    y_pred_train  = predict(model, graphs_train)
+    train_metrics = regression_metrics(y_train, y_pred_train)
+    print(f"  [train] RMSE={train_metrics['rmse']:.4f}  Pearson={train_metrics['pearson']:+.4f}")
 
     stereo_metrics = stereo_ordering_accuracy(model, sp)
     print(f"  Ordering accuracy: {stereo_metrics['ordering_acc']:.4f}"
@@ -579,7 +599,7 @@ def run_one_seed(
     sub_metrics = eval_pair_metrics(model, sub_pairs, "SMILES_1", "SMILES_2")
     print(f"  Substitution-pair delta Pearson: {sub_metrics['delta_pearson']:+.4f}")
 
-    return test_metrics, stereo_metrics, tag_metrics, sub_metrics, history
+    return test_metrics, train_metrics, stereo_metrics, tag_metrics, sub_metrics, history
 
 
 def main() -> None:
@@ -615,10 +635,11 @@ def main() -> None:
     y_test  = np.array(ds["test"]["B"],  dtype=np.float32)
     print(f"  train={len(y_train)}  val={len(y_val)}  test={len(y_test)}")
 
+    weights_path = WEIGHTS_DIR / f"results_pretrained_gin_seed{seed}.pt"
     print(f"\n── Seed {seed} ──")
-    test_metrics, stereo_metrics, tag_metrics, sub_metrics, history = run_one_seed(
+    test_metrics, train_metrics, stereo_metrics, tag_metrics, sub_metrics, history = run_one_seed(
         seed, graphs_train, graphs_val, graphs_test, y_train, y_val, y_test, sp,
-        tag_pairs, sub_pairs,
+        tag_pairs, sub_pairs, weights_path=weights_path,
     )
 
     config = {
@@ -632,7 +653,7 @@ def main() -> None:
         "epochs_run": history[-1]["epoch"],
         "best_val_loss": min(h["val_loss"] for h in history),
     }
-    save_results(seed, test_metrics, stereo_metrics, tag_metrics, sub_metrics,
+    save_results(seed, test_metrics, train_metrics, stereo_metrics, tag_metrics, sub_metrics,
                  training, config, RESULTS_DIR, "results_pretrained_gin")
 
 

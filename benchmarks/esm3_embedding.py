@@ -101,6 +101,7 @@ LR_PATIENCE  = 10
 DEVICE       = "cuda" if torch.cuda.is_available() else "cpu"
 
 RESULTS_DIR  = Path(__file__).parent / "output"
+WEIGHTS_DIR  = Path(__file__).parent / "weights"
 
 
 # ── learnable single-token embedding ─────────────────────────────────────────
@@ -412,6 +413,7 @@ class _NpEncoder(json.JSONEncoder):
 def save_results(
     seed: int,
     test_metrics: dict,
+    train_metrics: dict,
     stereo_metrics: dict,
     tag_pair_metrics: dict,
     substitution_pair_metrics: dict,
@@ -427,6 +429,7 @@ def save_results(
         "config": config,
         "training": training,
         "test_metrics": test_metrics,
+        "train_metrics": train_metrics,
         "stereo_metrics": stereo_metrics,
         "tag_pair_metrics": tag_pair_metrics,
         "substitution_pair_metrics": substitution_pair_metrics,
@@ -447,10 +450,13 @@ def run_one_seed(
     model_learnable: list,
     train_loader,
     val_loader,
+    train_seqs: list[str],
+    y_train: np.ndarray,
     y_test: np.ndarray,
     stereo,
     tag_pairs,
     sub_pairs,
+    weights_path: Path | None = None,
 ) -> tuple[dict, dict, dict, dict, dict]:
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -462,67 +468,88 @@ def run_one_seed(
     emb_dim = model_learnable[0].shape[0]
     mlp     = MLP(emb_dim, HIDDEN_DIM, N_LAYERS, DROPOUT).to(DEVICE)
 
-    optimizer = torch.optim.Adam(
-        model_learnable + list(mlp.parameters()), lr=LR, weight_decay=WEIGHT_DECAY
-    )
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=LR_PATIENCE, factor=0.5, min_lr=1e-6)
-    criterion = nn.MSELoss()
-
-    best_val_loss  = float("inf")
-    best_mlp_state = None
-    best_f_emb     = None
-    no_improve     = 0
-    epochs_run     = 0
-
-    epoch_bar = tqdm(range(1, MAX_EPOCHS + 1), desc="  Training", unit="epoch")
-    for epoch in epoch_bar:
-        mlp.train()
-        model.train()
-        train_loss = 0.0
-        for seqs, y in tqdm(train_loader, desc=f"    epoch {epoch:3d} train", leave=False):
-            y = y.to(DEVICE)
-            optimizer.zero_grad()
-            pooled = embed_batch(model, tok, seqs)
-            loss   = criterion(mlp(pooled), y)
-            loss.backward()
-            optimizer.step()
-            train_loss += loss.item() * len(y)
-        train_loss /= len(train_loader.dataset)
-
+    if weights_path is not None and weights_path.exists():
+        print(f"  [weights] Loading from {weights_path} — skipping training")
+        ckpt = torch.load(weights_path, map_location=DEVICE, weights_only=False)
+        mlp.load_state_dict(ckpt["mlp"])
+        with torch.no_grad():
+            model_learnable[0].copy_(ckpt["f_emb"].to(DEVICE))
         mlp.eval()
         model.eval()
-        val_loss = 0.0
-        with torch.no_grad():
-            for seqs, y in tqdm(val_loader, desc=f"    epoch {epoch:3d} val  ", leave=False):
-                pooled    = embed_batch(model, tok, seqs)
-                val_loss += criterion(mlp(pooled), y.to(DEVICE)).item() * len(y)
-        val_loss /= len(val_loader.dataset)
-
-        scheduler.step(val_loss)
-        epochs_run = epoch
-
-        if val_loss < best_val_loss:
-            best_val_loss  = val_loss
-            best_mlp_state = {k: v.cpu().clone() for k, v in mlp.state_dict().items()}
-            best_f_emb     = model_learnable[0].detach().cpu().clone()
-            no_improve     = 0
-        else:
-            no_improve += 1
-
-        epoch_bar.set_postfix(
-            train=f"{train_loss:.4f}", val=f"{val_loss:.4f}",
-            best=f"{best_val_loss:.4f}", patience=no_improve,
+        epochs_run    = ckpt["epochs_run"]
+        best_val_loss = ckpt["best_val_loss"]
+    else:
+        optimizer = torch.optim.Adam(
+            model_learnable + list(mlp.parameters()), lr=LR, weight_decay=WEIGHT_DECAY
         )
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=LR_PATIENCE, factor=0.5, min_lr=1e-6)
+        criterion = nn.MSELoss()
 
-        if no_improve >= PATIENCE:
-            print(f"\n    Early stop at epoch {epoch}")
-            break
+        best_val_loss  = float("inf")
+        best_mlp_state = None
+        best_f_emb     = None
+        no_improve     = 0
+        epochs_run     = 0
 
-    mlp.load_state_dict({k: v.to(DEVICE) for k, v in best_mlp_state.items()})
-    with torch.no_grad():
-        model_learnable[0].copy_(best_f_emb.to(DEVICE))
-    mlp.eval()
-    model.eval()
+        epoch_bar = tqdm(range(1, MAX_EPOCHS + 1), desc="  Training", unit="epoch")
+        for epoch in epoch_bar:
+            mlp.train()
+            model.train()
+            train_loss = 0.0
+            for seqs, y in tqdm(train_loader, desc=f"    epoch {epoch:3d} train", leave=False):
+                y = y.to(DEVICE)
+                optimizer.zero_grad()
+                pooled = embed_batch(model, tok, seqs)
+                loss   = criterion(mlp(pooled), y)
+                loss.backward()
+                optimizer.step()
+                train_loss += loss.item() * len(y)
+            train_loss /= len(train_loader.dataset)
+
+            mlp.eval()
+            model.eval()
+            val_loss = 0.0
+            with torch.no_grad():
+                for seqs, y in tqdm(val_loader, desc=f"    epoch {epoch:3d} val  ", leave=False):
+                    pooled    = embed_batch(model, tok, seqs)
+                    val_loss += criterion(mlp(pooled), y.to(DEVICE)).item() * len(y)
+            val_loss /= len(val_loader.dataset)
+
+            scheduler.step(val_loss)
+            epochs_run = epoch
+
+            if val_loss < best_val_loss:
+                best_val_loss  = val_loss
+                best_mlp_state = {k: v.cpu().clone() for k, v in mlp.state_dict().items()}
+                best_f_emb     = model_learnable[0].detach().cpu().clone()
+                no_improve     = 0
+            else:
+                no_improve += 1
+
+            epoch_bar.set_postfix(
+                train=f"{train_loss:.4f}", val=f"{val_loss:.4f}",
+                best=f"{best_val_loss:.4f}", patience=no_improve,
+            )
+
+            if no_improve >= PATIENCE:
+                print(f"\n    Early stop at epoch {epoch}")
+                break
+
+        mlp.load_state_dict({k: v.to(DEVICE) for k, v in best_mlp_state.items()})
+        with torch.no_grad():
+            model_learnable[0].copy_(best_f_emb.to(DEVICE))
+        mlp.eval()
+        model.eval()
+
+        if weights_path is not None:
+            weights_path.parent.mkdir(parents=True, exist_ok=True)
+            torch.save({
+                "mlp":          mlp.state_dict(),
+                "f_emb":        model_learnable[0].detach().cpu(),
+                "epochs_run":   epochs_run,
+                "best_val_loss": best_val_loss,
+            }, weights_path)
+            print(f"  [weights] Saved to {weights_path}")
 
     print("  [eval] Pre-computing test embeddings …")
     emb_test     = embed_sequences(model, tok, list(ds_test_peptides), desc="Test  ")
@@ -530,6 +557,11 @@ def run_one_seed(
     print(f"  RMSE={test_metrics['rmse']:.4f}  "
           f"Pearson={test_metrics['pearson']:+.4f}  "
           f"Spearman={test_metrics['spearman']:+.4f}")
+
+    print("  [eval] Pre-computing train embeddings …")
+    emb_train     = embed_sequences(model, tok, train_seqs, desc="Train ")
+    train_metrics = evaluate(mlp, emb_train, y_train)
+    print(f"  [train] RMSE={train_metrics['rmse']:.4f}  Pearson={train_metrics['pearson']:+.4f}")
 
     stereo_metrics = stereo_ordering_accuracy(mlp, model, tok, stereo)
     print(f"  Ordering accuracy: {stereo_metrics['ordering_acc']:.4f}  "
@@ -541,7 +573,7 @@ def run_one_seed(
     print(f"  Substitution-pair delta Pearson: {sub_metrics['delta_pearson']:+.4f}")
 
     training_summary = {"epochs_run": epochs_run, "best_val_loss": best_val_loss}
-    return test_metrics, stereo_metrics, tag_metrics, sub_metrics, training_summary
+    return test_metrics, train_metrics, stereo_metrics, tag_metrics, sub_metrics, training_summary
 
 
 def main() -> None:
@@ -626,9 +658,13 @@ def main() -> None:
         )
 
         print(f"\n── Seed {seed} ──")
-        test_metrics, stereo_metrics, tag_metrics, sub_metrics, training_summary = run_one_seed(
+        weights_path = WEIGHTS_DIR / f"results_{model_key}_embedding_seed{seed}.pt"
+        test_metrics, train_metrics, stereo_metrics, tag_metrics, sub_metrics, training_summary = run_one_seed(
             seed, model, tok, f_emb_init, model_learnable,
-            train_loader, val_loader, y_test, stereo, tag_pairs, sub_pairs,
+            train_loader, val_loader,
+            list(ds["train"]["Peptide"]), y_train,
+            y_test, stereo, tag_pairs, sub_pairs,
+            weights_path=weights_path,
         )
 
         elapsed = time.time() - t0
@@ -650,7 +686,7 @@ def main() -> None:
             "device":       DEVICE,
         }
         stem = f"results_{model_key}_embedding"
-        save_results(seed, test_metrics, stereo_metrics, tag_metrics, sub_metrics,
+        save_results(seed, test_metrics, train_metrics, stereo_metrics, tag_metrics, sub_metrics,
                      training_summary, config, RESULTS_DIR, stem)
 
         # Free GPU memory before loading the next model

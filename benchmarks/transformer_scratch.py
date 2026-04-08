@@ -56,6 +56,7 @@ LR_PATIENCE  = 10
 DEVICE       = "cuda" if torch.cuda.is_available() else "cpu"
 
 RESULTS_DIR  = Path(__file__).parent / "output"
+WEIGHTS_DIR  = Path(__file__).parent / "weights"
 
 
 # ── tokenizer ─────────────────────────────────────────────────────────────────
@@ -287,6 +288,7 @@ class _NpEncoder(json.JSONEncoder):
 def save_results(
     seed: int,
     test_metrics: dict,
+    train_metrics: dict,
     stereo_metrics: dict,
     tag_pair_metrics: dict,
     substitution_pair_metrics: dict,
@@ -302,6 +304,7 @@ def save_results(
         "config": config,
         "training": training,
         "test_metrics": test_metrics,
+        "train_metrics": train_metrics,
         "stereo_metrics": stereo_metrics,
         "tag_pair_metrics": tag_pair_metrics,
         "substitution_pair_metrics": substitution_pair_metrics,
@@ -318,76 +321,95 @@ def run_one_seed(
     seed: int,
     train_loader: DataLoader,
     val_loader: DataLoader,
+    train_seqs: list[str],
+    y_train: np.ndarray,
     test_seqs: list[str],
     y_test: np.ndarray,
     stereo,
     tag_pairs,
     sub_pairs,
+    weights_path: Path | None = None,
 ) -> tuple[dict, dict, dict, dict, list[dict]]:
     torch.manual_seed(seed)
     np.random.seed(seed)
 
-    model     = PeptideTransformer().to(DEVICE)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, patience=LR_PATIENCE, factor=0.5, min_lr=1e-5
-    )
-    criterion = nn.MSELoss()
+    model = PeptideTransformer().to(DEVICE)
 
-    best_val_loss = float("inf")
-    best_state    = None
-    no_improve    = 0
-    history: list[dict] = []
-
-    epoch_bar = tqdm(range(1, MAX_EPOCHS + 1), desc="  Training", unit="epoch")
-    for epoch in epoch_bar:
-        model.train()
-        train_loss = 0.0
-        for tokens, mask, y in tqdm(train_loader, desc=f"    epoch {epoch:3d} train", leave=False):
-            tokens, mask, y = tokens.to(DEVICE), mask.to(DEVICE), y.to(DEVICE)
-            optimizer.zero_grad()
-            loss = criterion(model(tokens, mask), y)
-            loss.backward()
-            nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            optimizer.step()
-            train_loss += loss.item() * len(y)
-        train_loss /= len(train_loader.dataset)
-
+    if weights_path is not None and weights_path.exists():
+        print(f"  [weights] Loading from {weights_path} — skipping training")
+        ckpt    = torch.load(weights_path, map_location=DEVICE, weights_only=False)
+        model.load_state_dict(ckpt["state_dict"])
         model.eval()
-        val_loss = 0.0
-        with torch.no_grad():
-            for tokens, mask, y in tqdm(val_loader, desc=f"    epoch {epoch:3d} val  ", leave=False):
-                val_loss += criterion(
-                    model(tokens.to(DEVICE), mask.to(DEVICE)), y.to(DEVICE)
-                ).item() * len(y)
-        val_loss /= len(val_loader.dataset)
-
-        scheduler.step(val_loss)
-        history.append({"epoch": epoch, "train_loss": train_loss, "val_loss": val_loss})
-
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            best_state    = {k: v.cpu().clone() for k, v in model.state_dict().items()}
-            no_improve    = 0
-        else:
-            no_improve += 1
-
-        epoch_bar.set_postfix(
-            train=f"{train_loss:.4f}", val=f"{val_loss:.4f}",
-            best=f"{best_val_loss:.4f}", patience=no_improve,
+        history = ckpt["history"]
+    else:
+        optimizer = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, patience=LR_PATIENCE, factor=0.5, min_lr=1e-5
         )
+        criterion = nn.MSELoss()
 
-        if no_improve >= PATIENCE:
-            print(f"\n    Early stop at epoch {epoch}")
-            break
+        best_val_loss = float("inf")
+        best_state    = None
+        no_improve    = 0
+        history: list[dict] = []
 
-    model.load_state_dict({k: v.to(DEVICE) for k, v in best_state.items()})
+        epoch_bar = tqdm(range(1, MAX_EPOCHS + 1), desc="  Training", unit="epoch")
+        for epoch in epoch_bar:
+            model.train()
+            train_loss = 0.0
+            for tokens, mask, y in tqdm(train_loader, desc=f"    epoch {epoch:3d} train", leave=False):
+                tokens, mask, y = tokens.to(DEVICE), mask.to(DEVICE), y.to(DEVICE)
+                optimizer.zero_grad()
+                loss = criterion(model(tokens, mask), y)
+                loss.backward()
+                nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                optimizer.step()
+                train_loss += loss.item() * len(y)
+            train_loss /= len(train_loader.dataset)
+
+            model.eval()
+            val_loss = 0.0
+            with torch.no_grad():
+                for tokens, mask, y in tqdm(val_loader, desc=f"    epoch {epoch:3d} val  ", leave=False):
+                    val_loss += criterion(
+                        model(tokens.to(DEVICE), mask.to(DEVICE)), y.to(DEVICE)
+                    ).item() * len(y)
+            val_loss /= len(val_loader.dataset)
+
+            scheduler.step(val_loss)
+            history.append({"epoch": epoch, "train_loss": train_loss, "val_loss": val_loss})
+
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                best_state    = {k: v.cpu().clone() for k, v in model.state_dict().items()}
+                no_improve    = 0
+            else:
+                no_improve += 1
+
+            epoch_bar.set_postfix(
+                train=f"{train_loss:.4f}", val=f"{val_loss:.4f}",
+                best=f"{best_val_loss:.4f}", patience=no_improve,
+            )
+
+            if no_improve >= PATIENCE:
+                print(f"\n    Early stop at epoch {epoch}")
+                break
+
+        model.load_state_dict({k: v.to(DEVICE) for k, v in best_state.items()})
+        if weights_path is not None:
+            weights_path.parent.mkdir(parents=True, exist_ok=True)
+            torch.save({"state_dict": model.state_dict(), "history": history}, weights_path)
+            print(f"  [weights] Saved to {weights_path}")
 
     y_pred       = predict_from_seqs(model, test_seqs)
     test_metrics = regression_metrics(y_test, y_pred)
     print(f"  RMSE={test_metrics['rmse']:.4f}  "
           f"Pearson={test_metrics['pearson']:+.4f}  "
           f"Spearman={test_metrics['spearman']:+.4f}")
+
+    y_pred_train  = predict_from_seqs(model, train_seqs)
+    train_metrics = regression_metrics(y_train, y_pred_train)
+    print(f"  [train] RMSE={train_metrics['rmse']:.4f}  Pearson={train_metrics['pearson']:+.4f}")
 
     stereo_metrics = stereo_ordering_accuracy(model, stereo)
     print(f"  Ordering accuracy: {stereo_metrics['ordering_acc']:.4f}  "
@@ -398,7 +420,7 @@ def run_one_seed(
     sub_metrics = eval_pair_metrics(model, sub_pairs, "Sequence_1", "Sequence_2")
     print(f"  Substitution-pair delta Pearson: {sub_metrics['delta_pearson']:+.4f}")
 
-    return test_metrics, stereo_metrics, tag_metrics, sub_metrics, history
+    return test_metrics, train_metrics, stereo_metrics, tag_metrics, sub_metrics, history
 
 
 def main() -> None:
@@ -427,6 +449,7 @@ def main() -> None:
     train_tok, train_mask = tokenize_batch(ds["train"]["Peptide"])
     val_tok,   val_mask   = tokenize_batch(ds["val"]["Peptide"])
 
+    y_train_np = np.array(ds["train"]["B"], dtype=np.float32)
     y_train = torch.tensor(ds["train"]["B"], dtype=torch.float32)
     y_val   = torch.tensor(ds["val"]["B"],   dtype=torch.float32)
     y_test  = np.array(ds["test"]["B"],      dtype=np.float32)
@@ -443,10 +466,13 @@ def main() -> None:
     n_params = sum(p.numel() for p in PeptideTransformer().parameters() if p.requires_grad)
     print(f"[model] PeptideTransformer | {n_params:,} params | device={DEVICE}")
 
+    weights_path = WEIGHTS_DIR / f"results_transformer_scratch_seed{seed}.pt"
     print(f"\n── Seed {seed} ──")
-    test_metrics, stereo_metrics, tag_metrics, sub_metrics, history = run_one_seed(
-        seed, train_loader, val_loader, ds["test"]["Peptide"], y_test, stereo,
-        tag_pairs, sub_pairs,
+    test_metrics, train_metrics, stereo_metrics, tag_metrics, sub_metrics, history = run_one_seed(
+        seed, train_loader, val_loader,
+        list(ds["train"]["Peptide"]), y_train_np,
+        ds["test"]["Peptide"], y_test, stereo,
+        tag_pairs, sub_pairs, weights_path=weights_path,
     )
 
     print(f"\nTotal time: {time.time() - t0:.1f}s")
@@ -461,7 +487,7 @@ def main() -> None:
         "epochs_run": history[-1]["epoch"],
         "best_val_loss": min(h["val_loss"] for h in history),
     }
-    save_results(seed, test_metrics, stereo_metrics, tag_metrics, sub_metrics,
+    save_results(seed, test_metrics, train_metrics, stereo_metrics, tag_metrics, sub_metrics,
                  training, config, RESULTS_DIR, "results_transformer_scratch")
 
 

@@ -1,0 +1,79 @@
+{
+  "benchmark": "results_deeprt_capsnet",
+  "seed": 2,
+  "timestamp": "2026-03-25 14:10:21",
+  "config": {
+    "kernel_sizes": [
+      8,
+      10,
+      12
+    ],
+    "emb_size": 20,
+    "conv_filters": 256,
+    "num_routing": 1,
+    "max_len": 50,
+    "vocab_size": 22,
+    "lr": 0.001,
+    "batch_size": 64,
+    "max_epochs": 1000,
+    "patience": 100,
+    "lr_patience": 10,
+    "device": "cuda",
+    "y_min": 7.881802558898926,
+    "y_max": 91.0
+  },
+  "training": {
+    "kernel_8": {
+      "epochs_run": 113,
+      "best_val_loss": 0.00434692967664883
+    },
+    "kernel_10": {
+      "epochs_run": 112,
+      "best_val_loss": 0.004316255186539081
+    },
+    "kernel_12": {
+      "epochs_run": 113,
+      "best_val_loss": 0.004411008962922709
+    }
+  },
+  "test_metrics": {
+    "rmse": 7.26100875067594,
+    "mae": 5.201231479644775,
+    "pearson": 0.7521853446960449,
+    "spearman": 0.7947419200649124,
+    "kendall": 0.6032314040130042
+  },
+  "stereo_metrics": {
+    "n_pairs": 542,
+    "n_correct": 211,
+    "ordering_acc": 0.3892988929889299,
+    "delta_pearson": -0.04414184443621585,
+    "delta_spearman": -0.04621132382829429,
+    "mean_true_delta": 2.309785781570318,
+    "mean_pred_delta": -0.041510213166475296
+  },
+  "tag_pair_metrics": {
+    "n_pairs": 1549,
+    "delta_pearson": 0.34192373455422953,
+    "delta_spearman": 0.370029925170124,
+    "delta_rmse": 7.221174445729679,
+    "delta_mae": 5.350386517610511,
+    "ordering_acc": 0.9231762427372499,
+    "n_correct": 1430,
+    "n_evaluated": 1549,
+    "mean_true_delta": -9.318920401692854,
+    "mean_pred_delta": -5.632153511047363
+  },
+  "substitution_pair_metrics": {
+    "n_pairs": 6942,
+    "delta_pearson": 0.4250150401533543,
+    "delta_spearman": 0.47084268288606235,
+    "delta_rmse": 7.50144064735554,
+    "delta_mae": 5.155439791704931,
+    "ordering_acc": 0.7460386055891673,
+    "n_correct": 5179,
+    "n_evaluated": 6942,
+    "mean_true_delta": -2.2433541624651894,
+    "mean_pred_delta": -0.7113633155822754
+  }
+}

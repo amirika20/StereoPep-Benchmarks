@@ -7,15 +7,15 @@
     \toprule
     \textbf{Model} & \rotatebox{45}{\textbf{Pairwise Acc.}} & \rotatebox{45}{\textbf{$\Delta$ Pearson}} & \rotatebox{45}{\textbf{$\Delta$ Spearman}} & \rotatebox{45}{\textbf{$\Delta$ Kendall}} & \rotatebox{45}{\textbf{$\Delta$ AUC}} & \rotatebox{45}{\textbf{$\Delta$ RMSE}} & \rotatebox{45}{\textbf{$\Delta$ MAE}} \\
     \midrule
-  GIN & \textbf{\makecell{0.6664 \\ $\pm$0.0391}} & \textbf{\makecell{0.1619 \\ $\pm$0.1317}} & \textbf{\makecell{0.2030 \\ $\pm$0.1583}} & -- & -- & -- & -- \\
-  Pretrained GIN & \makecell{0.6493 \\ $\pm$0.0117} & \makecell{0.1336 \\ $\pm$0.0861} & \makecell{0.1572 \\ $\pm$0.0943} & -- & -- & -- & -- \\
-  ESM3-small & \makecell{0.6192 \\ $\pm$0.0229} & \makecell{0.0217 \\ $\pm$0.0458} & \makecell{0.0371 \\ $\pm$0.0762} & -- & -- & -- & -- \\
-  ESMC-300M & \makecell{0.5956 \\ $\pm$0.0251} & \makecell{0.0825 \\ $\pm$0.0570} & \makecell{0.1080 \\ $\pm$0.0538} & -- & -- & -- & -- \\
-  ESMC-600M & \makecell{0.5533 \\ $\pm$0.0228} & \makecell{-0.0545 \\ $\pm$0.0478} & \makecell{-0.0640 \\ $\pm$0.0430} & -- & -- & -- & -- \\
-  Transformer & \makecell{0.5600 \\ $\pm$0.1043} & \makecell{0.0781 \\ $\pm$0.1363} & \makecell{0.0910 \\ $\pm$0.1473} & -- & -- & -- & -- \\
-  DeepLC & \makecell{0.6269 \\ $\pm$0.0875} & \makecell{0.0171 \\ $\pm$0.1192} & \makecell{0.0362 \\ $\pm$0.1377} & -- & -- & -- & -- \\
-  DeepRT-CapsNet & \makecell{0.4708 \\ $\pm$0.0968} & \makecell{-0.0488 \\ $\pm$0.0812} & \makecell{-0.0430 \\ $\pm$0.0794} & -- & -- & -- & -- \\
-  Morgan FP MLP & \makecell{0.6188 \\ $\pm$0.0231} & \makecell{-0.0384 \\ $\pm$0.0503} & \makecell{-0.0278 \\ $\pm$0.0426} & -- & -- & -- & -- \\
+  GIN & \textbf{\makecell{0.6637 \\ $\pm$0.0371}} & \textbf{\makecell{0.0920 \\ $\pm$0.1391}} & \makecell{0.1322 \\ $\pm$0.1280} & \makecell{0.0975 \\ $\pm$0.0870} & \makecell{0.5565 \\ $\pm$0.0852} & \makecell{7.3226 \\ $\pm$0.4723} & \makecell{5.2928 \\ $\pm$0.3841} \\
+  Pretrained GIN & \makecell{0.6493 \\ $\pm$0.0143} & \makecell{0.0913 \\ $\pm$0.0471} & \textbf{\makecell{0.1394 \\ $\pm$0.0581}} & \textbf{\makecell{0.0989 \\ $\pm$0.0427}} & \textbf{\makecell{0.5793 \\ $\pm$0.0416}} & \textbf{\makecell{7.1328 \\ $\pm$0.0723}} & \textbf{\makecell{5.1285 \\ $\pm$0.0723}} \\
+  ESM3-small & \makecell{0.6004 \\ $\pm$0.0399} & \makecell{0.0610 \\ $\pm$0.0696} & \makecell{0.0635 \\ $\pm$0.0837} & \makecell{0.0423 \\ $\pm$0.0555} & \makecell{0.5150 \\ $\pm$0.0477} & \makecell{7.3193 \\ $\pm$0.0783} & \makecell{5.5116 \\ $\pm$0.0861} \\
+  ESMC-300M & \makecell{0.6000 \\ $\pm$0.0262} & \makecell{0.0864 \\ $\pm$0.0448} & \makecell{0.1249 \\ $\pm$0.0586} & \makecell{0.0867 \\ $\pm$0.0396} & \makecell{0.5468 \\ $\pm$0.0474} & \makecell{7.2126 \\ $\pm$0.0687} & \makecell{5.3274 \\ $\pm$0.0952} \\
+  ESMC-600M & \makecell{0.5633 \\ $\pm$0.0237} & \makecell{-0.0289 \\ $\pm$0.0414} & \makecell{-0.0289 \\ $\pm$0.0380} & \makecell{-0.0205 \\ $\pm$0.0251} & \makecell{0.4512 \\ $\pm$0.0232} & \makecell{7.3416 \\ $\pm$0.0602} & \makecell{5.4907 \\ $\pm$0.0502} \\
+  Transformer & \makecell{0.5788 \\ $\pm$0.1018} & \makecell{0.0825 \\ $\pm$0.1457} & \makecell{0.0829 \\ $\pm$0.1573} & \makecell{0.0193 \\ $\pm$0.0943} & \makecell{0.5096 \\ $\pm$0.0863} & \makecell{7.5736 \\ $\pm$0.6961} & \makecell{5.6224 \\ $\pm$0.6431} \\
+  DeepLC & \makecell{0.6236 \\ $\pm$0.0831} & \makecell{0.0087 \\ $\pm$0.1070} & \makecell{0.0265 \\ $\pm$0.1278} & \makecell{0.0290 \\ $\pm$0.0902} & \makecell{0.4714 \\ $\pm$0.0765} & \makecell{7.2434 \\ $\pm$0.2309} & \makecell{5.3307 \\ $\pm$0.2689} \\
+  DeepRT-CapsNet & \makecell{0.4138 \\ $\pm$0.0481} & \makecell{-0.0701 \\ $\pm$0.0528} & \makecell{-0.0622 \\ $\pm$0.0550} & \makecell{-0.0455 \\ $\pm$0.0361} & \makecell{0.4487 \\ $\pm$0.0302} & \makecell{7.8843 \\ $\pm$0.3073} & \makecell{6.0020 \\ $\pm$0.3301} \\
+  Morgan FP MLP & \makecell{0.6277 \\ $\pm$0.0184} & \makecell{-0.0520 \\ $\pm$0.0386} & \makecell{-0.0319 \\ $\pm$0.0377} & \makecell{-0.0271 \\ $\pm$0.0268} & \makecell{0.5263 \\ $\pm$0.0185} & \makecell{7.7641 \\ $\pm$0.1309} & \makecell{5.6105 \\ $\pm$0.0826} \\
     \bottomrule
   \end{tabular}
 \end{table}
