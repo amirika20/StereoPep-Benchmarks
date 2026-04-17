@@ -68,18 +68,18 @@ BENCHMARKS: dict[str, dict] = {
         "mem":     "32G",
         "gpus":    1,
     },
-    "egnn_3d": {
-        "script":  "benchmarks/egnn_3d.py",
-        "time":    "0-08:00",
-        "mem":     "32G",
-        "gpus":    1,
-    },
-    "pepmnet": {
-        "script":  "benchmarks/pepmnet.py",
-        "time":    "0-08:00",
-        "mem":     "32G",
-        "gpus":    1,
-    },
+    # "egnn_3d": {
+    #     "script":  "benchmarks/egnn_3d.py",
+    #     "time":    "0-08:00",
+    #     "mem":     "32G",
+    #     "gpus":    1,
+    # },
+    # "pepmnet": {
+    #     "script":  "benchmarks/pepmnet.py",
+    #     "time":    "0-08:00",
+    #     "mem":     "32G",
+    #     "gpus":    1,
+    # },
     "esm3_sm": {
         "script":  "benchmarks/esm3_embedding.py",
         "time":    "0-12:00",

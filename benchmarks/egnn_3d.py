@@ -524,12 +524,13 @@ def stereo_ordering_accuracy(
     stereo_ds,
     conf_seed: int = 42,
     cache_dir: Path | None = None,
+    cache_prefix: str = "stereo_pairs",
 ) -> dict:
     graphs_f, bad_f = load_or_encode_smiles_3d(
-        list(stereo_ds["SMILES_f"]), "stereo_pairs_SMILES_f", conf_seed, cache_dir
+        list(stereo_ds["SMILES_f"]), f"{cache_prefix}_SMILES_f", conf_seed, cache_dir
     )
     graphs_F, bad_F = load_or_encode_smiles_3d(
-        list(stereo_ds["SMILES_F"]), "stereo_pairs_SMILES_F", conf_seed, cache_dir
+        list(stereo_ds["SMILES_F"]), f"{cache_prefix}_SMILES_F", conf_seed, cache_dir
     )
     delta_B = np.array(stereo_ds["delta_B"], dtype=np.float64)
 
@@ -617,6 +618,7 @@ def save_results(
     test_metrics: dict,
     train_metrics: dict,
     stereo_metrics: dict,
+    stereo_trainval_metrics: dict,
     tag_pair_metrics: dict,
     sub_pair_metrics: dict,
     training: dict,
@@ -633,6 +635,7 @@ def save_results(
         "test_metrics":            test_metrics,
         "train_metrics":           train_metrics,
         "stereo_metrics":          stereo_metrics,
+        "stereo_trainval_metrics": stereo_trainval_metrics,
         "tag_pair_metrics":        tag_pair_metrics,
         "substitution_pair_metrics": sub_pair_metrics,
     }
@@ -653,12 +656,13 @@ def run_one_seed(
     y_val: np.ndarray,
     y_test: np.ndarray,
     sp,
+    stereo_trainval,
     tag_pairs,
     sub_pairs,
     conf_seed: int = 42,
     cache_dir: Path | None = None,
     weights_path: Path | None = None,
-) -> tuple[dict, dict, dict, dict, list[dict]]:
+) -> tuple[dict, dict, dict, dict, dict, list[dict]]:
     torch.manual_seed(seed)
     np.random.seed(seed)
 
@@ -703,6 +707,13 @@ def run_one_seed(
     print(f"  Stereo ordering acc: {stereo_metrics['ordering_acc']:.4f}"
           f"  ({stereo_metrics['n_correct']}/{stereo_metrics['n_pairs']})")
 
+    stereo_trainval_metrics = stereo_ordering_accuracy(
+        model, stereo_trainval, conf_seed=conf_seed, cache_dir=cache_dir,
+        cache_prefix="stereo_pairs_trainval",
+    )
+    print(f"  Trainval ordering acc: {stereo_trainval_metrics['ordering_acc']:.4f}"
+          f"  ({stereo_trainval_metrics['n_correct']}/{stereo_trainval_metrics['n_pairs']})")
+
     tag_metrics = eval_pair_metrics(
         model, tag_pairs, "SMILES_untagged", "SMILES_tagged",
         ds_name="tag_pairs", conf_seed=conf_seed, cache_dir=cache_dir,
@@ -715,7 +726,7 @@ def run_one_seed(
     )
     print(f"  Substitution-pair delta Pearson: {sub_metrics['delta_pearson']:+.4f}")
 
-    return test_metrics, train_metrics, stereo_metrics, tag_metrics, sub_metrics, history
+    return test_metrics, train_metrics, stereo_metrics, stereo_trainval_metrics, tag_metrics, sub_metrics, history
 
 
 def main() -> None:
@@ -748,9 +759,10 @@ def main() -> None:
 
     print("Loading PepTag dataset …")
     ds        = hf_load_dataset(HF_REPO, "peptag")
-    sp        = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
-    tag_pairs = hf_load_dataset(HF_REPO, "tag_pairs")["tag_pairs"]
-    sub_pairs = hf_load_dataset(HF_REPO, "substitution_pairs")["substitution_pairs"]
+    sp              = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
+    stereo_trainval = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs_trainval"]
+    tag_pairs       = hf_load_dataset(HF_REPO, "tag_pairs")["tag_pairs"]
+    sub_pairs       = hf_load_dataset(HF_REPO, "substitution_pairs")["substitution_pairs"]
 
     print("Loading/generating 3D conformers (ETKDGv3) …")
     graphs_train, bad_train = load_or_encode_smiles_3d(
@@ -772,11 +784,11 @@ def main() -> None:
 
     weights_path = WEIGHTS_DIR / f"results_egnn_3d_seed{seed}.pt"
     print(f"\n── Seed {seed} ──")
-    test_m, train_m, stereo_m, tag_m, sub_m, history = run_one_seed(
+    test_m, train_m, stereo_m, stereo_tv_m, tag_m, sub_m, history = run_one_seed(
         seed,
         graphs_train, graphs_val, graphs_test,
         y_train, y_val, y_test,
-        sp, tag_pairs, sub_pairs,
+        sp, stereo_trainval, tag_pairs, sub_pairs,
         conf_seed=conf_seed,
         cache_dir=cache_dir,
         weights_path=weights_path,
@@ -805,7 +817,7 @@ def main() -> None:
         "best_val_loss": min(h["val_loss"] for h in history),
     }
     save_results(
-        seed, test_m, train_m, stereo_m, tag_m, sub_m,
+        seed, test_m, train_m, stereo_m, stereo_tv_m, tag_m, sub_m,
         training, config, RESULTS_DIR, "results_egnn_3d",
     )
 

@@ -103,7 +103,7 @@ METRICS_FLAT = {
     "pearson":      ("test_metrics", "pearson"),
     "spearman":     ("test_metrics", "spearman"),
     "kendall":      ("test_metrics", "kendall"),
-    # stereo pairs (D-Phe vs L-Phe)
+    # stereo pairs test (D-Phe vs L-Phe)
     "ordering_acc":       ("stereo_metrics",           "ordering_acc"),
     "delta_pearson":      ("stereo_metrics",           "delta_pearson"),
     "delta_spearman":     ("stereo_metrics",           "delta_spearman"),
@@ -114,6 +114,17 @@ METRICS_FLAT = {
     "mean_pred_delta":    ("stereo_metrics",           "mean_pred_delta"),
     "n_correct":          ("stereo_metrics",           "n_correct"),
     "n_pairs":            ("stereo_metrics",           "n_pairs"),
+    # stereo pairs trainval (D-Phe vs L-Phe, on training+val data)
+    "tv_ordering_acc":    ("stereo_trainval_metrics",  "ordering_acc"),
+    "tv_delta_pearson":   ("stereo_trainval_metrics",  "delta_pearson"),
+    "tv_delta_spearman":  ("stereo_trainval_metrics",  "delta_spearman"),
+    "tv_delta_kendall":   ("stereo_trainval_metrics",  "delta_kendall"),
+    "tv_delta_rmse":      ("stereo_trainval_metrics",  "delta_rmse"),
+    "tv_delta_mae":       ("stereo_trainval_metrics",  "delta_mae"),
+    "tv_delta_auc":       ("stereo_trainval_metrics",  "delta_auc"),
+    "tv_mean_pred_delta": ("stereo_trainval_metrics",  "mean_pred_delta"),
+    "tv_n_correct":       ("stereo_trainval_metrics",  "n_correct"),
+    "tv_n_pairs":         ("stereo_trainval_metrics",  "n_pairs"),
     # tag pairs (with F/f tag vs without)
     "tag_delta_pearson":  ("tag_pair_metrics",         "delta_pearson"),
     "tag_delta_spearman": ("tag_pair_metrics",         "delta_spearman"),
@@ -192,6 +203,9 @@ def save_summary(df: pd.DataFrame):
                                        "pearson", "spearman", "kendall"]),
             "stereo_metrics": _section(["ordering_acc", "delta_pearson", "delta_spearman",
                                         "mean_pred_delta", "n_correct"]),
+            "stereo_trainval_metrics": _section(["tv_ordering_acc", "tv_delta_pearson",
+                                                 "tv_delta_spearman", "tv_mean_pred_delta",
+                                                 "tv_n_correct"]),
             "tag_pair_metrics": _section(["tag_delta_pearson", "tag_delta_spearman",
                                           "tag_delta_rmse", "tag_delta_mae", "tag_ordering_acc"]),
             "substitution_pair_metrics": _section(["sub_delta_pearson", "sub_delta_spearman",
@@ -588,7 +602,7 @@ def save_latex_tables(df: pd.DataFrame):
             "tab:overall_performance",
             "latex_overall_performance.tex",
         ),
-        # ---- 2. Diastereomer performance --------------------------------------
+        # ---- 2. Diastereomer performance (test) --------------------------------
         (
             [
                 ("ordering_acc",   "Pairwise Acc."),
@@ -599,10 +613,26 @@ def save_latex_tables(df: pd.DataFrame):
                 ("delta_rmse",     "$\\Delta$ RMSE"),
                 ("delta_mae",      "$\\Delta$ MAE"),
             ],
-            "Diastereomer-pair performance (D/L-Phe pairs; mean $\\pm$ std over seeds; "
+            "Diastereomer-pair performance (D/L-Phe pairs, test set; mean $\\pm$ std over seeds; "
             "bold denotes best per column).",
             "tab:diastereomer_performance",
             "latex_diastereomer_performance.tex",
+        ),
+        # ---- 2b. Diastereomer performance (trainval) --------------------------
+        (
+            [
+                ("tv_ordering_acc",   "Pairwise Acc."),
+                ("tv_delta_pearson",  "$\\Delta$ Pearson"),
+                ("tv_delta_spearman", "$\\Delta$ Spearman"),
+                ("tv_delta_kendall",  "$\\Delta$ Kendall"),
+                ("tv_delta_auc",      "$\\Delta$ AUC"),
+                ("tv_delta_rmse",     "$\\Delta$ RMSE"),
+                ("tv_delta_mae",      "$\\Delta$ MAE"),
+            ],
+            "Diastereomer-pair performance (D/L-Phe pairs, train+val set; mean $\\pm$ std over seeds; "
+            "bold denotes best per column).",
+            "tab:diastereomer_trainval_performance",
+            "latex_diastereomer_trainval_performance.tex",
         ),
         # ---- 3. Point-mutation (substitution) performance ---------------------
         (
@@ -670,10 +700,10 @@ def main():
     # -----------------------------------------------------------------------
     print("\nGenerating figures …")
 
-    # --- MOST IMPORTANT: pairwise accuracy ---
+    # --- MOST IMPORTANT: pairwise accuracy (test) ---
     _bar_plot(
         df, "ordering_acc",
-        title="Diastereomer Pair Pairwise Accuracy (D/L-Phe pairs)",
+        title="Diastereomer Pair Pairwise Accuracy — Test Set (D/L-Phe pairs)",
         ylabel="Pairwise Accuracy",
         filename="pairwise_accuracy_diastereomer.png",
         higher_is_better=True,
@@ -682,9 +712,36 @@ def main():
 
     _strip_plot(
         grouped, "stereo_metrics", "ordering_acc",
-        title="Diastereomer Pair Pairwise Accuracy — per-seed distribution",
+        title="Diastereomer Pair Pairwise Accuracy (test) — per-seed distribution",
         ylabel="Pairwise Accuracy",
         filename="pairwise_accuracy_diastereomer_seeds.png",
+    )
+
+    # --- Pairwise accuracy on trainval (seen data — overfitting diagnostic) ---
+    _bar_plot(
+        df, "tv_ordering_acc",
+        title="Diastereomer Pair Pairwise Accuracy — Train+Val Set (D/L-Phe pairs)",
+        ylabel="Pairwise Accuracy",
+        filename="pairwise_accuracy_diastereomer_trainval.png",
+        higher_is_better=True,
+        ylim=(0.45, 1.00),
+    )
+
+    _strip_plot(
+        grouped, "stereo_trainval_metrics", "ordering_acc",
+        title="Diastereomer Pair Pairwise Accuracy (train+val) — per-seed distribution",
+        ylabel="Pairwise Accuracy",
+        filename="pairwise_accuracy_diastereomer_trainval_seeds.png",
+    )
+
+    # --- Test vs trainval pairwise accuracy comparison ---
+    _multi_metric_bar(
+        df,
+        metrics=["ordering_acc", "tv_ordering_acc"],
+        labels=["Test", "Train+Val"],
+        title="Diastereomer Pairwise Accuracy: Test vs Train+Val",
+        ylabel="Pairwise Accuracy",
+        filename="pairwise_accuracy_test_vs_trainval.png",
     )
 
     # --- Test metrics (regression) ---
@@ -774,12 +831,12 @@ def main():
         filename="error_metrics_grouped.png",
     )
 
-    # --- Diastereomer pair pairwise metrics ---
+    # --- Diastereomer pair pairwise metrics (test) ---
     _multi_metric_bar(
         df,
         metrics=["ordering_acc", "delta_kendall", "delta_spearman", "delta_auc"],
         labels=["Pairwise Accuracy", "Kendall τ", "Spearman ρ", "AUC"],
-        title="Diastereomer Pair Pairwise Metrics (D/L-Phe pairs)",
+        title="Diastereomer Pair Pairwise Metrics — Test Set (D/L-Phe pairs)",
         ylabel="Score",
         filename="diastereomer_metrics_grouped.png",
     )
@@ -788,9 +845,28 @@ def main():
         df,
         metrics=["delta_mae", "delta_rmse"],
         labels=["MAE on Δ", "RMSE on Δ"],
-        title="Diastereomer Pair ΔRT Error (D/L-Phe pairs)",
+        title="Diastereomer Pair ΔRT Error — Test Set (D/L-Phe pairs)",
         ylabel="Error (minutes)",
         filename="diastereomer_delta_error.png",
+    )
+
+    # --- Diastereomer pair pairwise metrics (trainval) ---
+    _multi_metric_bar(
+        df,
+        metrics=["tv_ordering_acc", "tv_delta_kendall", "tv_delta_spearman", "tv_delta_auc"],
+        labels=["Pairwise Accuracy", "Kendall τ", "Spearman ρ", "AUC"],
+        title="Diastereomer Pair Pairwise Metrics — Train+Val Set (D/L-Phe pairs)",
+        ylabel="Score",
+        filename="diastereomer_metrics_trainval_grouped.png",
+    )
+
+    _multi_metric_bar(
+        df,
+        metrics=["tv_delta_mae", "tv_delta_rmse"],
+        labels=["MAE on Δ", "RMSE on Δ"],
+        title="Diastereomer Pair ΔRT Error — Train+Val Set (D/L-Phe pairs)",
+        ylabel="Error (minutes)",
+        filename="diastereomer_delta_error_trainval.png",
     )
 
     # --- Addition mutation pair metrics ---

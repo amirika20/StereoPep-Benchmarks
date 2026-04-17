@@ -457,6 +457,7 @@ def save_results(
     test_metrics: dict,
     train_metrics: dict,
     stereo_metrics: dict,
+    stereo_trainval_metrics: dict,
     tag_pair_metrics: dict,
     substitution_pair_metrics: dict,
     training: dict,
@@ -473,6 +474,7 @@ def save_results(
         "test_metrics": test_metrics,
         "train_metrics": train_metrics,
         "stereo_metrics": stereo_metrics,
+        "stereo_trainval_metrics": stereo_trainval_metrics,
         "tag_pair_metrics": tag_pair_metrics,
         "substitution_pair_metrics": substitution_pair_metrics,
     }
@@ -493,10 +495,11 @@ def run_one_seed(
     y_val: np.ndarray,
     y_test: np.ndarray,
     sp,
+    stereo_trainval,
     tag_pairs,
     sub_pairs,
     weights_path: Path | None = None,
-) -> tuple[dict, dict, dict, dict, list[dict]]:
+) -> tuple[dict, dict, dict, dict, dict, list[dict]]:
     torch.manual_seed(seed)
     np.random.seed(seed)
 
@@ -537,12 +540,16 @@ def run_one_seed(
     print(f"  Ordering accuracy: {stereo_metrics['ordering_acc']:.4f}"
           f"  ({stereo_metrics['n_correct']}/{stereo_metrics['n_pairs']})")
 
+    stereo_trainval_metrics = stereo_ordering_accuracy(model, stereo_trainval)
+    print(f"  Trainval ordering accuracy: {stereo_trainval_metrics['ordering_acc']:.4f}"
+          f"  ({stereo_trainval_metrics['n_correct']}/{stereo_trainval_metrics['n_pairs']})")
+
     tag_metrics = eval_pair_metrics(model, tag_pairs, "SMILES_untagged", "SMILES_tagged")
     print(f"  Tag-pair delta Pearson: {tag_metrics['delta_pearson']:+.4f}")
     sub_metrics = eval_pair_metrics(model, sub_pairs, "SMILES_1", "SMILES_2")
     print(f"  Substitution-pair delta Pearson: {sub_metrics['delta_pearson']:+.4f}")
 
-    return test_metrics, train_metrics, stereo_metrics, tag_metrics, sub_metrics, history
+    return test_metrics, train_metrics, stereo_metrics, stereo_trainval_metrics, tag_metrics, sub_metrics, history
 
 
 def main() -> None:
@@ -562,9 +569,10 @@ def main() -> None:
 
     print("Loading peptag dataset …")
     ds        = hf_load_dataset(HF_REPO, "peptag")
-    sp        = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
-    tag_pairs = hf_load_dataset(HF_REPO, "tag_pairs")["tag_pairs"]
-    sub_pairs = hf_load_dataset(HF_REPO, "substitution_pairs")["substitution_pairs"]
+    sp              = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
+    stereo_trainval = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs_trainval"]
+    tag_pairs       = hf_load_dataset(HF_REPO, "tag_pairs")["tag_pairs"]
+    sub_pairs       = hf_load_dataset(HF_REPO, "substitution_pairs")["substitution_pairs"]
 
     graphs_train, _ = encode_smiles(ds["train"]["SMILES"], desc="Graphs train")
     graphs_val,   _ = encode_smiles(ds["val"]["SMILES"],   desc="Graphs val  ")
@@ -577,9 +585,9 @@ def main() -> None:
 
     weights_path = WEIGHTS_DIR / f"results_gin_scratch_seed{seed}.pt"
     print(f"\n── Seed {seed} ──")
-    test_metrics, train_metrics, stereo_metrics, tag_metrics, sub_metrics, history = run_one_seed(
+    test_metrics, train_metrics, stereo_metrics, stereo_trainval_metrics, tag_metrics, sub_metrics, history = run_one_seed(
         seed, graphs_train, graphs_val, graphs_test, y_train, y_val, y_test, sp,
-        tag_pairs, sub_pairs, weights_path=weights_path,
+        stereo_trainval, tag_pairs, sub_pairs, weights_path=weights_path,
     )
 
     config = {
@@ -594,8 +602,8 @@ def main() -> None:
         "epochs_run": history[-1]["epoch"],
         "best_val_loss": min(h["val_loss"] for h in history),
     }
-    save_results(seed, test_metrics, train_metrics, stereo_metrics, tag_metrics, sub_metrics,
-                 training, config, RESULTS_DIR, "results_gin_scratch")
+    save_results(seed, test_metrics, train_metrics, stereo_metrics, stereo_trainval_metrics,
+                 tag_metrics, sub_metrics, training, config, RESULTS_DIR, "results_gin_scratch")
 
 
 if __name__ == "__main__":

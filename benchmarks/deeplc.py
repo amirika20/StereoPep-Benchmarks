@@ -521,6 +521,7 @@ def save_results(
     test_metrics: dict,
     train_metrics: dict,
     stereo_metrics: dict,
+    stereo_trainval_metrics: dict,
     tag_pair_metrics: dict,
     substitution_pair_metrics: dict,
     training: dict,
@@ -537,6 +538,7 @@ def save_results(
         "test_metrics": test_metrics,
         "train_metrics": train_metrics,
         "stereo_metrics": stereo_metrics,
+        "stereo_trainval_metrics": stereo_trainval_metrics,
         "tag_pair_metrics": tag_pair_metrics,
         "substitution_pair_metrics": substitution_pair_metrics,
     }
@@ -557,10 +559,11 @@ def run_one_seed(
     aa_te, dia_te, oh_te, gl_te,
     y_test: np.ndarray,
     stereo,
+    stereo_trainval,
     tag_pairs,
     sub_pairs,
     weights_path: Path | None = None,
-) -> tuple[dict, dict, dict, dict, dict]:
+) -> tuple[dict, dict, dict, dict, dict, dict]:
     torch.manual_seed(seed)
     np.random.seed(seed)
 
@@ -606,12 +609,16 @@ def run_one_seed(
     print(f"  Ordering accuracy: {stereo_metrics['ordering_acc']:.4f}  "
           f"({stereo_metrics['n_correct']}/{stereo_metrics['n_pairs']})")
 
+    stereo_trainval_metrics = stereo_ordering_accuracy(trained_models, stereo_trainval)
+    print(f"  Trainval ordering accuracy: {stereo_trainval_metrics['ordering_acc']:.4f}  "
+          f"({stereo_trainval_metrics['n_correct']}/{stereo_trainval_metrics['n_pairs']})")
+
     tag_metrics = eval_pair_metrics(trained_models, tag_pairs, "Sequence_untagged", "Sequence_tagged")
     print(f"  Tag-pair delta Pearson: {tag_metrics['delta_pearson']:+.4f}")
     sub_metrics = eval_pair_metrics(trained_models, sub_pairs, "Sequence_1", "Sequence_2")
     print(f"  Substitution-pair delta Pearson: {sub_metrics['delta_pearson']:+.4f}")
 
-    return test_metrics, train_metrics, stereo_metrics, tag_metrics, sub_metrics, histories
+    return test_metrics, train_metrics, stereo_metrics, stereo_trainval_metrics, tag_metrics, sub_metrics, histories
 
 
 def main() -> None:
@@ -632,9 +639,10 @@ def main() -> None:
 
     print("[data] Loading peptag dataset …")
     ds        = hf_load_dataset(HF_REPO, "peptag")
-    stereo    = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
-    tag_pairs = hf_load_dataset(HF_REPO, "tag_pairs")["tag_pairs"]
-    sub_pairs = hf_load_dataset(HF_REPO, "substitution_pairs")["substitution_pairs"]
+    stereo          = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
+    stereo_trainval = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs_trainval"]
+    tag_pairs       = hf_load_dataset(HF_REPO, "tag_pairs")["tag_pairs"]
+    sub_pairs       = hf_load_dataset(HF_REPO, "substitution_pairs")["substitution_pairs"]
 
     print("[encode] Building feature tensors …")
     aa_tr, dia_tr, oh_tr, gl_tr = encode_split(list(ds["train"]["Peptide"]), "Train")
@@ -657,10 +665,10 @@ def main() -> None:
 
     weights_path = WEIGHTS_DIR / f"results_deeplc_seed{seed}.pt"
     print(f"\n── Seed {seed} ──")
-    test_metrics, train_metrics, stereo_metrics, tag_metrics, sub_metrics, histories = run_one_seed(
+    test_metrics, train_metrics, stereo_metrics, stereo_trainval_metrics, tag_metrics, sub_metrics, histories = run_one_seed(
         seed, train_loader, val_loader,
         aa_tr, dia_tr, oh_tr, gl_tr, y_train_np,
-        aa_te, dia_te, oh_te, gl_te, y_test, stereo, tag_pairs, sub_pairs,
+        aa_te, dia_te, oh_te, gl_te, y_test, stereo, stereo_trainval, tag_pairs, sub_pairs,
         weights_path=weights_path,
     )
 
@@ -676,8 +684,8 @@ def main() -> None:
         f"kernel_{k}": {"epochs_run": hs[-1]["epoch"], "best_val_loss": min(h["val_loss"] for h in hs)}
         for k, hs in histories.items()
     }
-    save_results(seed, test_metrics, train_metrics, stereo_metrics, tag_metrics, sub_metrics,
-                 training, config, RESULTS_DIR, "results_deeplc")
+    save_results(seed, test_metrics, train_metrics, stereo_metrics, stereo_trainval_metrics,
+                 tag_metrics, sub_metrics, training, config, RESULTS_DIR, "results_deeplc")
 
 
 if __name__ == "__main__":
