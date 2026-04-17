@@ -767,6 +767,7 @@ def save_results(
     test_metrics: dict,
     train_metrics: dict,
     stereo_metrics: dict,
+    stereo_trainval_metrics: dict,
     training: dict,
     config: dict,
     output_dir: Path,
@@ -778,9 +779,10 @@ def save_results(
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "config":    config,
         "training":  training,
-        "test_metrics":   test_metrics,
-        "train_metrics":  train_metrics,
-        "stereo_metrics": stereo_metrics,
+        "test_metrics":          test_metrics,
+        "train_metrics":         train_metrics,
+        "stereo_metrics":        stereo_metrics,
+        "stereo_trainval_metrics": stereo_trainval_metrics,
     }
     out = output_dir / f"{stem}_seed{seed}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -823,6 +825,7 @@ def run_one_seed(
     y_train: np.ndarray,
     y_test: np.ndarray,
     stereo_ds,
+    stereo_trainval_ds,
     node_ft_dict: dict,
     edge_ft_dict: dict,
     aa_ft_dict: dict,
@@ -830,7 +833,7 @@ def run_one_seed(
     edge_dim: int,
     aa_feat_dim: int,
     weights_path: Path | None = None,
-) -> tuple[dict, dict, list[dict]]:
+) -> tuple[dict, dict, dict, dict, list[dict]]:
     torch.manual_seed(seed)
     np.random.seed(seed)
 
@@ -875,7 +878,13 @@ def run_one_seed(
     print(f"  Ordering accuracy: {stereo_metrics['ordering_acc']:.4f}"
           f"  ({stereo_metrics['n_correct']}/{stereo_metrics['n_pairs']})")
 
-    return test_metrics, train_metrics, stereo_metrics, history
+    stereo_trainval_metrics = stereo_ordering_accuracy(
+        model, stereo_trainval_ds, node_ft_dict, edge_ft_dict, aa_ft_dict, node_dim, edge_dim, aa_feat_dim
+    )
+    print(f"  Trainval ordering accuracy: {stereo_trainval_metrics['ordering_acc']:.4f}"
+          f"  ({stereo_trainval_metrics['n_correct']}/{stereo_trainval_metrics['n_pairs']})")
+
+    return test_metrics, train_metrics, stereo_metrics, stereo_trainval_metrics, history
 
 
 def main() -> None:
@@ -898,7 +907,8 @@ def main() -> None:
 
     print("[data] Loading peptag dataset …")
     ds     = hf_load_dataset(HF_REPO, "peptag")
-    stereo = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
+    stereo          = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
+    stereo_trainval = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs_trainval"]
 
     kwargs = dict(
         node_ft_dict=node_ft_dict, edge_ft_dict=edge_ft_dict,
@@ -919,8 +929,8 @@ def main() -> None:
 
     weights_path = WEIGHTS_DIR / f"results_pepmnet_seed{seed}.pt"
     print(f"\n── Seed {seed} ──")
-    test_metrics, train_metrics, stereo_metrics, history = run_one_seed(
-        seed, train_samples, val_samples, test_samples, y_train, y_test, stereo,
+    test_metrics, train_metrics, stereo_metrics, stereo_trainval_metrics, history = run_one_seed(
+        seed, train_samples, val_samples, test_samples, y_train, y_test, stereo, stereo_trainval,
         weights_path=weights_path, **kwargs
     )
 
@@ -938,8 +948,8 @@ def main() -> None:
         "epochs_run":    history[-1]["epoch"],
         "best_val_loss": min(h["val_loss"] for h in history),
     }
-    save_results(seed, test_metrics, train_metrics, stereo_metrics, training, config,
-                 RESULTS_DIR, "results_pepmnet")
+    save_results(seed, test_metrics, train_metrics, stereo_metrics, stereo_trainval_metrics,
+                 training, config, RESULTS_DIR, "results_pepmnet")
     print(f"\nTotal time: {time.time() - t0:.1f}s")
 
 

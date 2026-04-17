@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
 """
-Submit SLURM array jobs for DeepRT benchmarks.
+Submit SLURM array jobs for DeepRT DIA benchmarks.
 
 Each benchmark is submitted as a SLURM array job where task index == seed,
-so results land in benchmarks/results_<name>_seed<N>.json.
+so results land in benchmarks_dia/output/results_<name>_dia_seed<N>.json.
 
 Usage
 -----
   # Submit all benchmarks, seeds 0-4, on Kempner
-  python benchmarks/submit_benchmarks.py
+  python benchmarks_dia/submit_benchmarks.py
 
   # Submit only two benchmarks with 10 seeds
-  python benchmarks/submit_benchmarks.py --benchmarks morgan_fp_mlp pretrained_gin --seeds 0-9
+  python benchmarks_dia/submit_benchmarks.py --benchmarks morgan_fp_mlp pretrained_gin --seeds 0-9
 
   # Dry run (print sbatch scripts, don't submit)
-  python benchmarks/submit_benchmarks.py --dry-run
+  python benchmarks_dia/submit_benchmarks.py --dry-run
 
   # List available benchmarks
-  python benchmarks/submit_benchmarks.py --list
+  python benchmarks_dia/submit_benchmarks.py --list
 """
 
 from __future__ import annotations
@@ -33,70 +33,70 @@ from pathlib import Path
 
 BENCHMARKS: dict[str, dict] = {
     "morgan_fp_mlp": {
-        "script":  "benchmarks/morgan_fp_mlp.py",
-        "time":    "0-04:00",
+        "script":  "benchmarks_dia/morgan_fp_mlp.py",
+        "time":    "0-06:00",
         "mem":     "32G",
         "gpus":    1,
     },
     "transformer_scratch": {
-        "script":  "benchmarks/transformer_scratch.py",
-        "time":    "0-06:00",
-        "mem":     "32G",
-        "gpus":    1,
-    },
-    "deeplc": {
-        "script":  "benchmarks/deeplc.py",
-        "time":    "0-06:00",
-        "mem":     "32G",
-        "gpus":    1,
-    },
-    "deeprt_capsnet": {
-        "script":  "benchmarks/deeprt_capsnet.py",
+        "script":  "benchmarks_dia/transformer_scratch.py",
         "time":    "0-08:00",
         "mem":     "32G",
         "gpus":    1,
     },
+    "deeplc": {
+        "script":  "benchmarks_dia/deeplc.py",
+        "time":    "0-08:00",
+        "mem":     "32G",
+        "gpus":    1,
+    },
+    "deeprt_capsnet": {
+        "script":  "benchmarks_dia/deeprt_capsnet.py",
+        "time":    "0-10:00",
+        "mem":     "32G",
+        "gpus":    1,
+    },
     "pretrained_gin": {
-        "script":  "benchmarks/pretrained_gin.py",
-        "time":    "0-06:00",
+        "script":  "benchmarks_dia/pretrained_gin.py",
+        "time":    "0-08:00",
         "mem":     "32G",
         "gpus":    1,
     },
     "gin_scratch": {
-        "script":  "benchmarks/gin_scratch.py",
-        "time":    "0-06:00",
+        "script":  "benchmarks_dia/gin_scratch.py",
+        "time":    "0-08:00",
         "mem":     "32G",
         "gpus":    1,
     },
     # "egnn_3d": {
-    #     "script":  "benchmarks/egnn_3d.py",
-    #     "time":    "0-08:00",
+    #     "script":  "benchmarks_dia/egnn_3d.py",
+    #     "time":    "0-10:00",
     #     "mem":     "32G",
     #     "gpus":    1,
     # },
     # "pepmnet": {
-    #     "script":  "benchmarks/pepmnet.py",
-    #     "time":    "0-08:00",
+    #     "script":  "benchmarks_dia/pepmnet.py",
+    #     "time":    "0-10:00",
     #     "mem":     "32G",
     #     "gpus":    1,
     # },
     "esm3_sm": {
-        "script":  "benchmarks/esm3_embedding.py",
-        "time":    "0-12:00",
+        "script":  "benchmarks_dia/esm3_embedding.py",
+        "time":    "0-14:00",
         "mem":     "64G",
         "gpus":    1,
         "extra":   ["--model", "esm3_sm"],
     },
     "esmc_300m": {
-        "script":  "benchmarks/esm3_embedding.py",
-        "time":    "0-12:00",
+        "script":  "benchmarks_dia/esm3_embedding.py",
+        "time":    "0-14:00",
         "mem":     "64G",
         "gpus":    1,
         "extra":   ["--model", "esmc_300m"],
     },
     "esmc_600m": {
-        "script":  "benchmarks/esm3_embedding.py",
-        "time":    "0-16:00",
+        "script":  "benchmarks_dia/esm3_embedding.py",
+        "time":    "0-18:00",
         "mem":     "80G",   # larger model
         "gpus":    1,
         "extra":   ["--model", "esmc_600m"],
@@ -109,11 +109,6 @@ SUBMIT_SH  = REPO_ROOT / "submit.sh"
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
-
-def seed_range_str(seeds: str) -> str:
-    """Normalise seeds to 'A-B' or 'A B C' as needed by submit.sh."""
-    return seeds
-
 
 def submit_one(
     name: str,
@@ -166,7 +161,7 @@ def submit_one(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Submit SLURM array jobs for all DeepRT benchmarks.",
+        description="Submit SLURM array jobs for all DeepRT DIA benchmarks.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
@@ -207,7 +202,7 @@ def main() -> None:
     if not SUBMIT_SH.exists():
         parser.error(f"submit.sh not found at {SUBMIT_SH}")
 
-    print(f"Submitting {len(args.benchmarks)} benchmark(s) on Kempner")
+    print(f"Submitting {len(args.benchmarks)} DIA benchmark(s) on Kempner")
     print(f"Seeds: {args.seeds}  |  Epochs: {args.epochs}")
     if args.dry_run:
         print("(dry run)")
@@ -222,7 +217,7 @@ def main() -> None:
             extra_args=extra,
         )
 
-    print(f"\nDone. Results will be written to benchmarks/results_<name>_seed<N>.json")
+    print(f"\nDone. Results will be written to benchmarks_dia/output/results_<name>_dia_seed<N>.json")
 
 
 if __name__ == "__main__":
