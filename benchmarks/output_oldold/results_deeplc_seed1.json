@@ -1,0 +1,87 @@
+{
+  "benchmark": "results_deeplc",
+  "seed": 1,
+  "timestamp": "2026-04-04 05:01:08",
+  "config": {
+    "kernel_sizes": [
+      2,
+      4,
+      8
+    ],
+    "conv_filters": 64,
+    "dense_hidden": 128,
+    "n_dense": 6,
+    "max_len": 20,
+    "l1_alpha": 2.5e-07,
+    "lr": 0.001,
+    "batch_size": 256,
+    "max_epochs": 1000,
+    "patience": 100,
+    "device": "cuda"
+  },
+  "training": {
+    "kernel_2": {
+      "epochs_run": 167,
+      "best_val_loss": 30.057948007950017
+    },
+    "kernel_4": {
+      "epochs_run": 143,
+      "best_val_loss": 31.13099078084632
+    },
+    "kernel_8": {
+      "epochs_run": 140,
+      "best_val_loss": 31.249697922262992
+    }
+  },
+  "test_metrics": {
+    "mse": 39.611026763916016,
+    "rmse": 6.2937291619449285,
+    "mae": 4.299647808074951,
+    "mean_error": -1.8580724000930786,
+    "r2": 0.6279782056808472,
+    "pearson": 0.8127551078796387,
+    "spearman": 0.8482725855898169,
+    "kendall": 0.6738005075151278
+  },
+  "stereo_metrics": {
+    "n_pairs": 542,
+    "n_correct": 351,
+    "ordering_acc": 0.6476014760147601,
+    "delta_pearson": 0.04799299033321149,
+    "delta_spearman": 0.0019078185287627937,
+    "delta_kendall": 0.001425541057628691,
+    "delta_rmse": 7.137587582460196,
+    "delta_mae": 5.232527563595497,
+    "delta_auc": 0.4618635926993276,
+    "mean_true_delta": 2.309785781570318,
+    "mean_pred_delta": 2.1945812702178955
+  },
+  "tag_pair_metrics": {
+    "n_pairs": 1549,
+    "delta_pearson": 0.31201650078399795,
+    "delta_spearman": 0.30175233608272944,
+    "delta_kendall": 0.20993622625583233,
+    "delta_rmse": 6.4779635989003435,
+    "delta_mae": 4.517646542699566,
+    "delta_auc": 0.5320505949190696,
+    "ordering_acc": 0.9373789541639768,
+    "n_correct": 1452,
+    "n_evaluated": 1549,
+    "mean_true_delta": -9.318920401692854,
+    "mean_pred_delta": -9.461094856262207
+  },
+  "substitution_pair_metrics": {
+    "n_pairs": 6942,
+    "delta_pearson": 0.433452778394984,
+    "delta_spearman": 0.4782981117207232,
+    "delta_kendall": 0.34557426766630656,
+    "delta_rmse": 7.374157887872501,
+    "delta_mae": 4.980327684544754,
+    "delta_auc": 0.7728317504957696,
+    "ordering_acc": 0.7395563238259868,
+    "n_correct": 5134,
+    "n_evaluated": 6942,
+    "mean_true_delta": -2.2433541624651894,
+    "mean_pred_delta": -1.275998592376709
+  }
+}

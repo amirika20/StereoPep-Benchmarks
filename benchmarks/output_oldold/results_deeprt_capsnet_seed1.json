@@ -1,0 +1,90 @@
+{
+  "benchmark": "results_deeprt_capsnet",
+  "seed": 1,
+  "timestamp": "2026-04-04 05:40:55",
+  "config": {
+    "kernel_sizes": [
+      8,
+      10,
+      12
+    ],
+    "emb_size": 20,
+    "conv_filters": 256,
+    "num_routing": 1,
+    "max_len": 50,
+    "vocab_size": 22,
+    "lr": 0.001,
+    "batch_size": 64,
+    "max_epochs": 1000,
+    "patience": 100,
+    "lr_patience": 10,
+    "device": "cuda",
+    "y_min": 7.881802558898926,
+    "y_max": 91.0
+  },
+  "training": {
+    "kernel_8": {
+      "epochs_run": 109,
+      "best_val_loss": 0.004335808064440875
+    },
+    "kernel_10": {
+      "epochs_run": 113,
+      "best_val_loss": 0.004254003928243283
+    },
+    "kernel_12": {
+      "epochs_run": 112,
+      "best_val_loss": 0.004305088144003543
+    }
+  },
+  "test_metrics": {
+    "mse": 52.75185775756836,
+    "rmse": 7.263047415346286,
+    "mae": 5.236644744873047,
+    "mean_error": -2.680133819580078,
+    "r2": 0.5045611262321472,
+    "pearson": 0.7722947597503662,
+    "spearman": 0.8027085929227384,
+    "kendall": 0.6095719776262561
+  },
+  "stereo_metrics": {
+    "n_pairs": 542,
+    "n_correct": 202,
+    "ordering_acc": 0.3726937269372694,
+    "delta_pearson": -0.05497300573615904,
+    "delta_spearman": -0.050277332156191415,
+    "delta_kendall": -0.033769635293395446,
+    "delta_rmse": 7.834781831844465,
+    "delta_mae": 5.91716629290329,
+    "delta_auc": 0.45598167442547843,
+    "mean_true_delta": 2.309785781570318,
+    "mean_pred_delta": -0.3424057960510254
+  },
+  "tag_pair_metrics": {
+    "n_pairs": 1549,
+    "delta_pearson": 0.3491248939448597,
+    "delta_spearman": 0.3475124042469622,
+    "delta_kendall": 0.23761766781269242,
+    "delta_rmse": 7.258570165104346,
+    "delta_mae": 5.596113830509234,
+    "delta_auc": 0.5912387894379534,
+    "ordering_acc": 0.9031633311814073,
+    "n_correct": 1399,
+    "n_evaluated": 1549,
+    "mean_true_delta": -9.318920401692854,
+    "mean_pred_delta": -5.61459493637085
+  },
+  "substitution_pair_metrics": {
+    "n_pairs": 6942,
+    "delta_pearson": 0.43475646794976985,
+    "delta_spearman": 0.4915523101733821,
+    "delta_kendall": 0.3472629353091073,
+    "delta_rmse": 7.4431098789084755,
+    "delta_mae": 5.160753474104602,
+    "delta_auc": 0.7754584685798698,
+    "ordering_acc": 0.7451743013540766,
+    "n_correct": 5173,
+    "n_evaluated": 6942,
+    "mean_true_delta": -2.2433541624651894,
+    "mean_pred_delta": -0.8525300621986389
+  }
+}

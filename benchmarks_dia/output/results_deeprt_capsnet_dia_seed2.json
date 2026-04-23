@@ -1,0 +1,58 @@
+{
+  "benchmark": "results_deeprt_capsnet_dia",
+  "dataset": "dia",
+  "seed": 2,
+  "timestamp": "2026-04-18 17:32:20",
+  "config": {
+    "kernel_sizes": [
+      8,
+      10,
+      12
+    ],
+    "emb_size": 20,
+    "conv_filters": 256,
+    "num_routing": 1,
+    "max_len": 80,
+    "lr": 0.001,
+    "batch_size": 64,
+    "max_epochs": 1000,
+    "patience": 100,
+    "device": "cuda",
+    "y_min": -3576.0,
+    "y_max": 10980.0
+  },
+  "training": {
+    "kernel_8": {
+      "epochs_run": 124,
+      "best_val_loss": 0.0002795405611694022
+    },
+    "kernel_10": {
+      "epochs_run": 130,
+      "best_val_loss": 0.00027649354277406435
+    },
+    "kernel_12": {
+      "epochs_run": 138,
+      "best_val_loss": 0.00027454706872550585
+    }
+  },
+  "test_metrics": {
+    "mse": 151528.71875,
+    "rmse": 389.26689911935745,
+    "mae": 297.9157409667969,
+    "mean_error": 75.75630950927734,
+    "r2": 0.9801701307296753,
+    "pearson": 0.995982825756073,
+    "spearman": 0.9970097691175059,
+    "kendall": 0.9564679742406175
+  },
+  "train_metrics": {
+    "mse": 95140.4375,
+    "rmse": 308.44843572305564,
+    "mae": 252.11033630371094,
+    "mean_error": 74.5900650024414,
+    "r2": 0.9875205755233765,
+    "pearson": 0.99961918592453,
+    "spearman": 0.9997116390804464,
+    "kendall": 0.9862068860922026
+  }
+}

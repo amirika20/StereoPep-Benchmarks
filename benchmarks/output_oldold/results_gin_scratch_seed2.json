@@ -1,0 +1,75 @@
+{
+  "benchmark": "results_gin_scratch",
+  "seed": 2,
+  "timestamp": "2026-04-04 07:17:56",
+  "config": {
+    "gin_layers": 5,
+    "gin_emb_dim": 300,
+    "head_hidden": 256,
+    "head_layers": 2,
+    "dropout": 0.1,
+    "lr": 0.001,
+    "weight_decay": 0.0001,
+    "batch_size": 64,
+    "max_epochs": 1000,
+    "patience": 100,
+    "lr_patience": 10,
+    "device": "cuda",
+    "pretrained": false
+  },
+  "training": {
+    "epochs_run": 277,
+    "best_val_loss": 31.439726779226472
+  },
+  "test_metrics": {
+    "mse": 54.04414749145508,
+    "rmse": 7.351472470971722,
+    "mae": 4.872729301452637,
+    "mean_error": -2.2328152656555176,
+    "r2": 0.4924241304397583,
+    "pearson": 0.7344573736190796,
+    "spearman": 0.7940028211862767,
+    "kendall": 0.616703388599545
+  },
+  "stereo_metrics": {
+    "n_pairs": 542,
+    "n_correct": 365,
+    "ordering_acc": 0.6734317343173432,
+    "delta_pearson": -0.07184022427292008,
+    "delta_spearman": 0.03314227513247651,
+    "delta_kendall": 0.04039942432696046,
+    "delta_rmse": 8.317334545297216,
+    "delta_mae": 5.869488499143448,
+    "delta_auc": 0.49215990541638954,
+    "mean_true_delta": 2.309785781570318,
+    "mean_pred_delta": 3.0019936561584473
+  },
+  "tag_pair_metrics": {
+    "n_pairs": 1549,
+    "delta_pearson": 0.31467169610790713,
+    "delta_spearman": 0.36185289059514714,
+    "delta_kendall": 0.2660881488932595,
+    "delta_rmse": 6.829897490196573,
+    "delta_mae": 4.587539698150619,
+    "delta_auc": 0.5883713867152607,
+    "ordering_acc": 0.9451258876694641,
+    "n_correct": 1464,
+    "n_evaluated": 1549,
+    "mean_true_delta": -9.318920401692854,
+    "mean_pred_delta": -8.240638732910156
+  },
+  "substitution_pair_metrics": {
+    "n_pairs": 6942,
+    "delta_pearson": 0.37431354500746344,
+    "delta_spearman": 0.4384275135887338,
+    "delta_kendall": 0.3188298558158456,
+    "delta_rmse": 7.8395701977617485,
+    "delta_mae": 5.2128033010637616,
+    "delta_auc": 0.7589055653367474,
+    "ordering_acc": 0.735234802650533,
+    "n_correct": 5104,
+    "n_evaluated": 6942,
+    "mean_true_delta": -2.2433541624651894,
+    "mean_pred_delta": -1.053800106048584
+  }
+}
