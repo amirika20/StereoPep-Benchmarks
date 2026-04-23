@@ -525,6 +525,9 @@ def _latex_table(
         low_keys = {"mse", "rmse", "mae", "mean_error", "error"}
         return not any(k in key.lower() for k in low_keys)
 
+    def _closest_to_zero(key: str) -> bool:
+        return "mean_error" in key.lower()
+
     # Determine best row index per metric column
     best: dict[str, int] = {}
     for key, _ in columns:
@@ -533,7 +536,10 @@ def _latex_table(
             continue
         vals = df[mc].values.astype(float)
         with np.errstate(invalid="ignore"):
-            best[key] = int(np.nanargmax(vals) if _higher(key) else np.nanargmin(vals))
+            if _closest_to_zero(key):
+                best[key] = int(np.nanargmin(np.abs(vals)))
+            else:
+                best[key] = int(np.nanargmax(vals) if _higher(key) else np.nanargmin(vals))
 
     # No vertical rules — l for model name, c for each metric
     col_spec = "l" + "c" * len(columns)
@@ -552,8 +558,8 @@ def _latex_table(
             if mc not in df.columns or pd.isna(row.get(mc)):
                 cells.append("--")
             else:
-                mean_str = f"{row[mc]:.4f}"
-                std_str  = f"$\\pm${row[sc]:.4f}"
+                mean_str = f"{row[mc]:.3f}"
+                std_str  = f"$\\pm${row[sc]:.3f}"
                 cell = r"\makecell{" + mean_str + r" \\ " + std_str + r"}"
                 if best.get(key) == ridx:
                     cell = r"\textbf{" + cell + r"}"
@@ -594,7 +600,6 @@ def save_latex_tables(df: pd.DataFrame):
                 ("r2",         "$R^2$"),
                 ("rmse",       "RMSE"),
                 ("mae",        "MAE"),
-                ("mse",        "MSE"),
                 ("mean_error", "Mean Error"),
             ],
             "Overall regression performance on B\\% prediction (mean $\\pm$ std over seeds; "
@@ -633,6 +638,22 @@ def save_latex_tables(df: pd.DataFrame):
             "bold denotes best per column).",
             "tab:diastereomer_trainval_performance",
             "latex_diastereomer_trainval_performance.tex",
+        ),
+        # ---- 2c. Trainval stereo results (ordered by pairwise acc) ------------
+        (
+            [
+                ("tv_ordering_acc",   "Pairwise Acc."),
+                ("tv_delta_auc",      "$\\Delta$ AUC"),
+                ("tv_delta_pearson",  "$\\Delta$ Pearson"),
+                ("tv_delta_spearman", "$\\Delta$ Spearman"),
+                ("tv_delta_kendall",  "$\\Delta$ Kendall"),
+                ("tv_delta_rmse",     "$\\Delta$ RMSE"),
+                ("tv_delta_mae",      "$\\Delta$ MAE"),
+            ],
+            "Trainval stereo results: diastereomer-pair performance on train+val set "
+            "(mean $\\pm$ std over seeds; bold denotes best per column).",
+            "tab:trainval_stereo_results",
+            "latex_trainval_stereo_results.tex",
         ),
         # ---- 3. Point-mutation (substitution) performance ---------------------
         (

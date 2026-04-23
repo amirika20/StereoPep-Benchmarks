@@ -1,0 +1,44 @@
+{
+  "benchmark": "results_gin_scratch_dia",
+  "dataset": "dia",
+  "seed": 4,
+  "timestamp": "2026-04-18 23:23:00",
+  "config": {
+    "gin_layers": 5,
+    "gin_emb_dim": 300,
+    "head_hidden": 256,
+    "head_layers": 2,
+    "dropout": 0.1,
+    "lr": 0.001,
+    "weight_decay": 0.0001,
+    "batch_size": 64,
+    "max_epochs": 1000,
+    "patience": 100,
+    "lr_patience": 10,
+    "device": "cuda"
+  },
+  "training": {
+    "epochs_run": 386,
+    "best_val_loss": 291665.59564734175
+  },
+  "test_metrics": {
+    "mse": 292309.5625,
+    "rmse": 540.6566031225366,
+    "mae": 370.6313171386719,
+    "mean_error": 16.700956344604492,
+    "r2": 0.9617468118667603,
+    "pearson": 0.9807055592536926,
+    "spearman": 0.985836772360287,
+    "kendall": 0.9016175242063235
+  },
+  "train_metrics": {
+    "mse": 256681.5625,
+    "rmse": 506.63750601391524,
+    "mae": 353.5869445800781,
+    "mean_error": 20.812002182006836,
+    "r2": 0.966331422328949,
+    "pearson": 0.9830509424209595,
+    "spearman": 0.9873173687351281,
+    "kendall": 0.9059657035865408
+  }
+}

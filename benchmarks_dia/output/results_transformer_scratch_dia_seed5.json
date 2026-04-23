@@ -1,0 +1,46 @@
+{
+  "benchmark": "results_transformer_scratch_dia",
+  "dataset": "dia",
+  "seed": 5,
+  "timestamp": "2026-04-18 13:49:41",
+  "config": {
+    "d_model": 128,
+    "n_heads": 4,
+    "n_layers": 4,
+    "ffn_mult": 4,
+    "dropout": 0.1,
+    "max_seq_len": 80,
+    "vocab_size": 25,
+    "lr": 0.001,
+    "weight_decay": 0.0001,
+    "batch_size": 256,
+    "max_epochs": 1000,
+    "patience": 100,
+    "lr_patience": 10,
+    "device": "cuda"
+  },
+  "training": {
+    "epochs_run": 207,
+    "best_val_loss": 102418.4249931781
+  },
+  "test_metrics": {
+    "mse": 103188.1640625,
+    "rmse": 321.22914572388976,
+    "mae": 222.0786590576172,
+    "mean_error": 34.04104995727539,
+    "r2": 0.9864962697029114,
+    "pearson": 0.9934503436088562,
+    "spearman": 0.9951006419856068,
+    "kendall": 0.9420304666726328
+  },
+  "train_metrics": {
+    "mse": 45830.171875,
+    "rmse": 214.07982594116615,
+    "mae": 161.74058532714844,
+    "mean_error": 37.21223831176758,
+    "r2": 0.9939885139465332,
+    "pearson": 0.9972399473190308,
+    "spearman": 0.9973820676529316,
+    "kendall": 0.9569703248150594
+  }
+}

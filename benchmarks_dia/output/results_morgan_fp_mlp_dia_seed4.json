@@ -1,0 +1,44 @@
+{
+  "benchmark": "results_morgan_fp_mlp_dia",
+  "dataset": "dia",
+  "seed": 4,
+  "timestamp": "2026-04-18 12:43:30",
+  "config": {
+    "fp_radius": 2,
+    "fp_nbits": 2048,
+    "hidden_dim": 512,
+    "n_layers": 3,
+    "dropout": 0.1,
+    "lr": 0.001,
+    "weight_decay": 0.0001,
+    "batch_size": 256,
+    "max_epochs": 1000,
+    "patience": 100,
+    "lr_patience": 10,
+    "device": "cuda"
+  },
+  "training": {
+    "epochs_run": 126,
+    "best_val_loss": 2779927.1790522104
+  },
+  "test_metrics": {
+    "mse": 2815906.25,
+    "rmse": 1678.0662233654546,
+    "mae": 1299.9678955078125,
+    "mean_error": -34.501808166503906,
+    "r2": 0.6314955949783325,
+    "pearson": 0.7949119806289673,
+    "spearman": 0.8029581312987323,
+    "kendall": 0.6103518787817139
+  },
+  "train_metrics": {
+    "mse": 2642594.0,
+    "rmse": 1625.6057332576063,
+    "mae": 1261.6331787109375,
+    "mean_error": -45.64363098144531,
+    "r2": 0.653374433517456,
+    "pearson": 0.8090018630027771,
+    "spearman": 0.8166705845234662,
+    "kendall": 0.6240541036066554
+  }
+}
