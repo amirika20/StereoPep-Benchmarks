@@ -12,13 +12,13 @@ Most peptide RT models are trained on canonical L-amino acid sequences. This ben
 
 ## Datasets
 
-### PepTag (`amirka20/peptag` on HuggingFace)
+### StereoPep (`amirka20/StereoPep` on HuggingFace)
 
-A custom dataset with a normalized retention-time target `B` (0–100 scale). Loaded via `datasets.load_dataset("amirka20/peptag", ...)`.
+A custom dataset with a normalized retention-time target `B` (0–100 scale). Loaded via `datasets.load_dataset("amirka20/StereoPep", ...)`.
 
 | Split | Description |
 |---|---|
-| `peptag` | Main train / val / test splits |
+| `stereopep` | Main train / val / test splits |
 | `stereo_pairs` | Matched pairs `(seq_f, seq_F)` — same peptide with D-Phe vs L-Phe; `delta_B = B_f - B_F` |
 | `stereo_pairs_trainval` | Same stereo pairs drawn from train/val sequences |
 | `tag_pairs` | Pairs differing by an N-terminal tag addition |
@@ -63,7 +63,7 @@ The same set of models is benchmarked on both datasets. Each model is run with 1
 **Overall regression** (test and train sets):
 - Pearson *r*, Spearman *ρ*, Kendall *τ*, R², RMSE, MAE, mean error
 
-**Stereo-pair metrics** (PepTag only):
+**Stereo-pair metrics** (StereoPep only):
 
 Given matched pairs `(seq_f, seq_F)`, `pred_delta = pred_f - pred_F` is computed and measured with:
 - **Ordering accuracy** — fraction of pairs where the model correctly ranks D vs L
@@ -78,7 +78,7 @@ The same delta metrics are computed for **tag pairs** and **substitution pairs**
 
 ```
 StereoPep-Benchmarks/
-├── benchmarks/                   # PepTag benchmark scripts
+├── benchmarks/                   # StereoPep benchmark scripts
 │   ├── *.py                      # One script per model
 │   ├── output/                   # JSON results: results_<model>_seed<N>.json
 │   ├── pretrained_weights/       # Saved .pt checkpoints (skips retraining on re-run)

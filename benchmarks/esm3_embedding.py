@@ -1,5 +1,5 @@
 """
-ESM embedding benchmark for the PepTag dataset.
+ESM embedding benchmark for the StereoPep dataset.
 
 Supports the full ESM3 and ESM-C (Cambrian) model families:
   esm3_sm    – ESM3-small  (esm3_sm_open_v0,   ~300 M params)
@@ -60,7 +60,7 @@ if _hf_token:
     _hf_login(token=_hf_token, add_to_git_credential=False)
 
 # ── config ────────────────────────────────────────────────────────────────────
-HF_REPO      = "amirka20/peptag"
+HF_REPO      = "amirka20/StereoPep"
 
 # Model registry ──────────────────────────────────────────────────────────────
 # import_fn  : name of the loader in esm.pretrained
@@ -628,8 +628,8 @@ def main() -> None:
     print(f"Models : {model_keys}")
 
     # Load dataset once; share across all model runs
-    print("\n[data] Loading peptag dataset …")
-    ds        = hf_load_dataset(HF_REPO, "peptag")
+    print("\n[data] Loading stereopep dataset …")
+    ds        = hf_load_dataset(HF_REPO, "StereoPep")
     stereo          = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
     stereo_trainval = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs_trainval"]
     tag_pairs       = hf_load_dataset(HF_REPO, "tag_pairs")["tag_pairs"]

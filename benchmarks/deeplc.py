@@ -1,5 +1,5 @@
 """
-DeepLC benchmark for the PepTag dataset.
+DeepLC benchmark for the StereoPep dataset.
 
 Implements the DeepLC convolutional architecture (Bouwmeester et al., 2021,
 Nature Methods).  Four parallel encoding paths process the same peptide:
@@ -22,7 +22,7 @@ averaged (ensemble), matching the original DeepLC approach.
 All layers except the output and the one-hot path use L1 regularisation
 with α = 2.5e-7 and a leaky ReLU capped at 20.  The one-hot path uses tanh.
 
-Adapted MAX_LEN=20 (original paper uses 60; peptag sequences are 6–17 AA).
+Adapted MAX_LEN=20 (original paper uses 60; stereopep sequences are 6–17 AA).
 
 Results are written to benchmarks/results_deeplc_seed{N}.json.
 """
@@ -46,7 +46,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
 # ── config ────────────────────────────────────────────────────────────────────
-HF_REPO      = "amirka20/peptag"
+HF_REPO      = "amirka20/StereoPep"
 
 MAX_LEN      = 20          # pad/truncate to this many residues
 KERNEL_SIZES = [2, 4, 8]   # three models → averaged ensemble
@@ -637,8 +637,8 @@ def main() -> None:
     print(f"Device: {DEVICE}  |  seed={seed}  |  max_epochs={MAX_EPOCHS}  |  patience={PATIENCE}")
     t0 = time.time()
 
-    print("[data] Loading peptag dataset …")
-    ds        = hf_load_dataset(HF_REPO, "peptag")
+    print("[data] Loading stereopep dataset …")
+    ds        = hf_load_dataset(HF_REPO, "StereoPep")
     stereo          = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
     stereo_trainval = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs_trainval"]
     tag_pairs       = hf_load_dataset(HF_REPO, "tag_pairs")["tag_pairs"]

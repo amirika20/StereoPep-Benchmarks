@@ -1,5 +1,5 @@
 """
-Morgan Fingerprint MLP benchmark for the PepTag dataset.
+Morgan Fingerprint MLP benchmark for the StereoPep dataset.
 
 Pipeline:
   1. Compute Morgan fingerprints (radius=2, 2048 bits) from full peptide SMILES.
@@ -34,7 +34,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, r
 from torch.utils.data import DataLoader, TensorDataset
 
 # ── config ────────────────────────────────────────────────────────────────────
-HF_REPO       = "amirka20/peptag"
+HF_REPO       = "amirka20/StereoPep"
 FP_RADIUS     = 2
 FP_NBITS      = 2048
 FP_CHIRALITY  = True   # must be True to distinguish D-Phe ('f') from L-Phe ('F')
@@ -420,8 +420,8 @@ def main() -> None:
     print(f"Running seed: {seed}")
 
     # Load dataset once
-    print("Loading peptag dataset …")
-    ds        = hf_load_dataset(HF_REPO, "peptag")
+    print("Loading stereopep dataset …")
+    ds        = hf_load_dataset(HF_REPO, "StereoPep")
     sp              = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
     stereo_trainval = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs_trainval"]
     tag_pairs       = hf_load_dataset(HF_REPO, "tag_pairs")["tag_pairs"]

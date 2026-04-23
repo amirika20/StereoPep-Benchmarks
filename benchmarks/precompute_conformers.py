@@ -1,5 +1,5 @@
 """
-Precompute and cache all 3D conformers for the PepTag dataset.
+Precompute and cache all 3D conformers for the StereoPep dataset.
 
 Run this once before training egnn_3d.py to avoid regenerating expensive
 RDKit ETKDGv3 conformers on every run.
@@ -69,8 +69,8 @@ def main() -> None:
     print(f"Force recompute : {args.force}")
     print()
 
-    print("Loading PepTag dataset …")
-    ds        = hf_load_dataset(HF_REPO, "peptag")
+    print("Loading StereoPep dataset …")
+    ds        = hf_load_dataset(HF_REPO, "StereoPep")
     sp        = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
     tag_pairs = hf_load_dataset(HF_REPO, "tag_pairs")["tag_pairs"]
     sub_pairs = hf_load_dataset(HF_REPO, "substitution_pairs")["substitution_pairs"]
@@ -81,7 +81,7 @@ def main() -> None:
     for split in ("train", "val", "test"):
         precompute_split(
             list(ds[split]["SMILES"]),
-            name=f"peptag_{split}",
+            name=f"stereopep_{split}",
             conf_seed=conf_seed,
             cache_dir=cache_dir,
             force=args.force,

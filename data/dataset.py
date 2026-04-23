@@ -8,7 +8,7 @@ from data.Tokenizer import PeptideTokenizer, ContinuousValueTokenizer
 
 
 VOCAB_FILE = Path(__file__).parent / "PEPLM_WORDS.csv"
-HF_REPO = "amirka20/peptag"
+HF_REPO = "amirka20/StereoPep"
 
 
 class PeptideDataset(Dataset):
@@ -41,8 +41,8 @@ class PeptideDataset(Dataset):
         return len(self.sequences)
 
 
-def load_peptag():
-    ds = hf_load_dataset(HF_REPO, "peptag")
+def load_stereopep():
+    ds = hf_load_dataset(HF_REPO, "StereoPep")
     return (
         PeptideDataset(ds["train"]),
         PeptideDataset(ds["val"]),
