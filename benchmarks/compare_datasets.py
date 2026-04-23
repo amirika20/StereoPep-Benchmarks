@@ -1,5 +1,5 @@
 """
-Compare test Pearson r across datasets (peptag vs dia).
+Compare test Pearson r across datasets (stereopep vs dia).
 Produces a LaTeX table where rows = datasets, columns = models.
 """
 
@@ -11,7 +11,7 @@ from collections import defaultdict
 import numpy as np
 
 SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
-PEPTAG_DIR   = os.path.join(SCRIPT_DIR, "output")
+STEREOPEP_DIR   = os.path.join(SCRIPT_DIR, "output")
 DIA_DIR      = os.path.join(os.path.dirname(SCRIPT_DIR), "benchmarks_dia", "output")
 METRICS_DIR  = os.path.join(os.path.dirname(SCRIPT_DIR), "metrics")
 
@@ -70,18 +70,18 @@ def load_pearson(output_dir: str, name_map: dict) -> dict[str, tuple[float, floa
 
 
 def build_latex_table(
-    peptag: dict[str, tuple[float, float]],
+    stereopep: dict[str, tuple[float, float]],
     dia:    dict[str, tuple[float, float]],
 ) -> str:
     # Only include models present in both datasets
-    all_models = [m for m in MODEL_ORDER if m in peptag and m in dia]
+    all_models = [m for m in MODEL_ORDER if m in stereopep and m in dia]
 
     # Best per column (dataset)
     def best_col(data: dict) -> str:
         vals = {m: data[m][0] for m in all_models if m in data}
         return max(vals, key=vals.__getitem__) if vals else ""
 
-    best_peptag = best_col(peptag)
+    best_stereopep = best_col(stereopep)
     best_dia    = best_col(dia)
 
     def cell(data: dict, model: str, best: str) -> str:
@@ -99,7 +99,7 @@ def build_latex_table(
     )
 
     rows = []
-    for dataset_name, data, best in [("PepTag", peptag, best_peptag),
+    for dataset_name, data, best in [("StereoPep", stereopep, best_stereopep),
                                       ("DIA",    dia,    best_dia)]:
         cells = [dataset_name] + [cell(data, m, best) for m in all_models]
         rows.append("  " + " & ".join(cells) + r" \\")
@@ -127,20 +127,20 @@ def build_latex_table(
 
 
 def main():
-    peptag = load_pearson(PEPTAG_DIR, MODEL_NAMES)
+    stereopep = load_pearson(STEREOPEP_DIR, MODEL_NAMES)
     dia    = load_pearson(DIA_DIR,    MODEL_NAMES_DIA)
 
-    print("PepTag Pearson r:")
+    print("StereoPep Pearson r:")
     for m in MODEL_ORDER:
-        if m in peptag:
-            print(f"  {m:<22}: {peptag[m][0]:.4f} ± {peptag[m][1]:.4f}")
+        if m in stereopep:
+            print(f"  {m:<22}: {stereopep[m][0]:.4f} ± {stereopep[m][1]:.4f}")
 
     print("\nDIA Pearson r:")
     for m in MODEL_ORDER:
         if m in dia:
             print(f"  {m:<22}: {dia[m][0]:.4f} ± {dia[m][1]:.4f}")
 
-    tex = build_latex_table(peptag, dia)
+    tex = build_latex_table(stereopep, dia)
 
     out_path = os.path.join(METRICS_DIR, "latex_dataset_comparison_pearson.tex")
     with open(out_path, "w") as f:

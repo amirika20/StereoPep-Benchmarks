@@ -1,5 +1,5 @@
 """
-PepMNet benchmark for the PepTag dataset.
+PepMNet benchmark for the StereoPep dataset.
 
 Implements the hierarchical GNN from:
   "PepMNet: a hybrid deep learning model for predicting peptide properties
@@ -58,7 +58,7 @@ except ImportError:
 warnings.filterwarnings("ignore", category=UserWarning)
 
 # ── config ─────────────────────────────────────────────────────────────────────
-HF_REPO = "amirka20/peptag"
+HF_REPO = "amirka20/StereoPep"
 
 # PepMNet RT hyperparameters (from paper / rt_main.py defaults)
 HIDDEN_NN_1  = 500
@@ -905,8 +905,8 @@ def main() -> None:
     node_ft_dict, edge_ft_dict, aa_ft_dict, node_dim, edge_dim, aa_feat_dim = build_feature_dicts()
     print(f"  node_dim={node_dim}  edge_dim={edge_dim}  aa_feat_dim={aa_feat_dim}")
 
-    print("[data] Loading peptag dataset …")
-    ds     = hf_load_dataset(HF_REPO, "peptag")
+    print("[data] Loading stereopep dataset …")
+    ds     = hf_load_dataset(HF_REPO, "StereoPep")
     stereo          = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
     stereo_trainval = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs_trainval"]
 

@@ -1,5 +1,5 @@
 """
-Biophysical feature correlation benchmark for the PepTag dataset.
+Biophysical feature correlation benchmark for the StereoPep dataset.
 
 Computes a suite of per-peptide biophysical descriptors from sequences and
 SMILES representations, then measures their Pearson / Spearman / Kendall
@@ -25,7 +25,7 @@ from scipy import stats
 REPO_ROOT = Path(__file__).parent.parent
 DATA_DIR = REPO_ROOT / "data"
 RESULTS_FILE = Path(__file__).parent / "output" / "results.txt"
-HF_REPO = "amirka20/peptag"
+HF_REPO = "amirka20/StereoPep"
 
 # ── per-residue lookup tables ─────────────────────────────────────────────────
 # Kyte-Doolittle hydrophobicity scale
@@ -272,7 +272,7 @@ def main() -> None:
     residue_props = _rdkit_residue_props()
 
     print(f"Loading dataset from {HF_REPO} …")
-    ds = hf_load_dataset(HF_REPO, "peptag")
+    ds = hf_load_dataset(HF_REPO, "StereoPep")
 
     # Use the full train split for correlation analysis (largest sample)
     split = ds["train"]

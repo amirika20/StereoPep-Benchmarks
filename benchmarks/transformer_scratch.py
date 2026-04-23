@@ -1,5 +1,5 @@
 """
-Transformer benchmark (trained from scratch) for the PepTag dataset.
+Transformer benchmark (trained from scratch) for the StereoPep dataset.
 
 Builds a small transformer encoder with attention pooling to predict B
 (retention time, normalised 0-100) directly from peptide sequences.
@@ -38,7 +38,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
 # ── config ────────────────────────────────────────────────────────────────────
-HF_REPO     = "amirka20/peptag"
+HF_REPO     = "amirka20/StereoPep"
 
 D_MODEL     = 128
 N_HEADS     = 4
@@ -446,8 +446,8 @@ def main() -> None:
     print(f"Device: {DEVICE}  |  seed={seed}  |  max_epochs={MAX_EPOCHS}  |  patience={PATIENCE}")
     t0 = time.time()
 
-    print("[data] Loading peptag dataset …")
-    ds        = hf_load_dataset(HF_REPO, "peptag")
+    print("[data] Loading stereopep dataset …")
+    ds        = hf_load_dataset(HF_REPO, "StereoPep")
     stereo          = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
     stereo_trainval = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs_trainval"]
     tag_pairs       = hf_load_dataset(HF_REPO, "tag_pairs")["tag_pairs"]

@@ -46,7 +46,7 @@ from tqdm import tqdm
 warnings.filterwarnings("ignore", category=UserWarning)
 
 # ── config ─────────────────────────────────────────────────────────────────────
-HF_REPO = "amirka20/peptag"
+HF_REPO = "amirka20/StereoPep"
 
 # 3D graph
 RADIUS_CUTOFF     = 5.0    # Ångström — typical for small-molecule GNNs
@@ -733,7 +733,7 @@ def main() -> None:
     global MAX_EPOCHS, PATIENCE, LR_PATIENCE
 
     parser = argparse.ArgumentParser(
-        description="EGNN benchmark with RDKit 3D conformers on PepTag"
+        description="EGNN benchmark with RDKit 3D conformers on StereoPep"
     )
     parser.add_argument("--seed",      type=int, default=0)
     parser.add_argument("--epochs",    type=int, default=MAX_EPOCHS)
@@ -757,8 +757,8 @@ def main() -> None:
         print("Conformer cache : not found — will generate on-the-fly (slow)")
         cache_dir = None
 
-    print("Loading PepTag dataset …")
-    ds        = hf_load_dataset(HF_REPO, "peptag")
+    print("Loading StereoPep dataset …")
+    ds        = hf_load_dataset(HF_REPO, "StereoPep")
     sp              = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
     stereo_trainval = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs_trainval"]
     tag_pairs       = hf_load_dataset(HF_REPO, "tag_pairs")["tag_pairs"]
@@ -766,13 +766,13 @@ def main() -> None:
 
     print("Loading/generating 3D conformers (ETKDGv3) …")
     graphs_train, bad_train = load_or_encode_smiles_3d(
-        list(ds["train"]["SMILES"]), "peptag_train", conf_seed, cache_dir
+        list(ds["train"]["SMILES"]), "stereopep_train", conf_seed, cache_dir
     )
     graphs_val, bad_val = load_or_encode_smiles_3d(
-        list(ds["val"]["SMILES"]), "peptag_val", conf_seed, cache_dir
+        list(ds["val"]["SMILES"]), "stereopep_val", conf_seed, cache_dir
     )
     graphs_test, bad_test = load_or_encode_smiles_3d(
-        list(ds["test"]["SMILES"]), "peptag_test", conf_seed, cache_dir
+        list(ds["test"]["SMILES"]), "stereopep_test", conf_seed, cache_dir
     )
     print(f"  Failed embeddings — train:{len(bad_train)}  val:{len(bad_val)}"
           f"  test:{len(bad_test)}")

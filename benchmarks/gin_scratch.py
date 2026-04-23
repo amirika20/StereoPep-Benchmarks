@@ -1,9 +1,9 @@
 """
-GIN trained from scratch on the PepTag dataset.
+GIN trained from scratch on the StereoPep dataset.
 
 Uses the same Graph Isomorphism Network (GIN) architecture as pretrained_gin.py
 (Hu et al., ICLR 2020) but initialises all weights randomly and trains end-to-end
-directly on the PepTag retention-time data — no external checkpoint required.
+directly on the StereoPep retention-time data — no external checkpoint required.
 
 Pipeline:
   1. Convert full peptide SMILES → molecular graphs (same atom/bond featurisation
@@ -38,7 +38,7 @@ from torch_geometric.utils import add_self_loops
 from torch.utils.data import DataLoader as PlainDataLoader
 
 # ── config ────────────────────────────────────────────────────────────────────
-HF_REPO = "amirka20/peptag"
+HF_REPO = "amirka20/StereoPep"
 
 # GIN architecture (kept identical to pretrained_gin.py for fair comparison)
 NUM_ATOM_TYPES     = 120
@@ -567,8 +567,8 @@ def main() -> None:
 
     print(f"Device: {DEVICE}  |  seed={seed}  |  max_epochs={MAX_EPOCHS}  |  patience={PATIENCE}")
 
-    print("Loading peptag dataset …")
-    ds        = hf_load_dataset(HF_REPO, "peptag")
+    print("Loading stereopep dataset …")
+    ds        = hf_load_dataset(HF_REPO, "StereoPep")
     sp              = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
     stereo_trainval = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs_trainval"]
     tag_pairs       = hf_load_dataset(HF_REPO, "tag_pairs")["tag_pairs"]

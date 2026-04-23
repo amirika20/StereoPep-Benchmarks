@@ -1,5 +1,5 @@
 """
-Pretrained GIN benchmark for the PepTag dataset.
+Pretrained GIN benchmark for the StereoPep dataset.
 
 Uses the Graph Isomorphism Network (GIN) pretrained on 2M molecules from
 ZINC15 + ~450k bio-assay labels (Hu et al., ICLR 2020 — "Strategies for
@@ -14,7 +14,7 @@ Pipeline:
   2. Convert full peptide SMILES → molecular graphs (atom/bond features
      matching the exact featurisation used during pre-training).
   3. Fine-tune the GNN end-to-end together with a small MLP head to predict
-     B (retention time, normalised 0-100) on the peptag train split.
+     B (retention time, normalised 0-100) on the stereopep train split.
   4. Evaluate on test split with regression metrics.
   5. Evaluate stereochemistry ordering accuracy on stereo_pairs (D-Phe vs
      L-Phe).
@@ -46,7 +46,7 @@ from torch_geometric.utils import add_self_loops
 from torch.utils.data import DataLoader as PlainDataLoader
 
 # ── config ────────────────────────────────────────────────────────────────────
-HF_REPO       = "amirka20/peptag"
+HF_REPO       = "amirka20/StereoPep"
 
 # GIN architecture — must match the pretrained weights exactly
 NUM_ATOM_TYPES     = 120
@@ -627,8 +627,8 @@ def main() -> None:
     print("Checking pretrained GIN weights …")
     download_weights()
 
-    print("Loading peptag dataset …")
-    ds        = hf_load_dataset(HF_REPO, "peptag")
+    print("Loading stereopep dataset …")
+    ds        = hf_load_dataset(HF_REPO, "StereoPep")
     sp              = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
     stereo_trainval = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs_trainval"]
     tag_pairs       = hf_load_dataset(HF_REPO, "tag_pairs")["tag_pairs"]
