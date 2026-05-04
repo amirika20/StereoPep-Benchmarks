@@ -524,7 +524,7 @@ def stereo_ordering_accuracy(
     stereo_ds,
     conf_seed: int = 42,
     cache_dir: Path | None = None,
-    cache_prefix: str = "stereo_pairs",
+    cache_prefix: str = "diastereomer_pairs",
 ) -> dict:
     graphs_f, bad_f = load_or_encode_smiles_3d(
         list(stereo_ds["SMILES_f"]), f"{cache_prefix}_SMILES_f", conf_seed, cache_dir
@@ -657,7 +657,7 @@ def run_one_seed(
     y_test: np.ndarray,
     sp,
     stereo_trainval,
-    tag_pairs,
+    terminal_tag_pairs,
     sub_pairs,
     conf_seed: int = 42,
     cache_dir: Path | None = None,
@@ -709,20 +709,20 @@ def run_one_seed(
 
     stereo_trainval_metrics = stereo_ordering_accuracy(
         model, stereo_trainval, conf_seed=conf_seed, cache_dir=cache_dir,
-        cache_prefix="stereo_pairs_trainval",
+        cache_prefix="diastereomer_pairs_trainval",
     )
     print(f"  Trainval ordering acc: {stereo_trainval_metrics['ordering_acc']:.4f}"
           f"  ({stereo_trainval_metrics['n_correct']}/{stereo_trainval_metrics['n_pairs']})")
 
     tag_metrics = eval_pair_metrics(
-        model, tag_pairs, "SMILES_untagged", "SMILES_tagged",
-        ds_name="tag_pairs", conf_seed=conf_seed, cache_dir=cache_dir,
+        model, terminal_tag_pairs, "SMILES_untagged", "SMILES_tagged",
+        ds_name="terminal_tag_pairs", conf_seed=conf_seed, cache_dir=cache_dir,
     )
     print(f"  Tag-pair delta Pearson: {tag_metrics['delta_pearson']:+.4f}")
 
     sub_metrics = eval_pair_metrics(
         model, sub_pairs, "SMILES_1", "SMILES_2",
-        ds_name="substitution_pairs", conf_seed=conf_seed, cache_dir=cache_dir,
+        ds_name="point_mutant_pairs", conf_seed=conf_seed, cache_dir=cache_dir,
     )
     print(f"  Substitution-pair delta Pearson: {sub_metrics['delta_pearson']:+.4f}")
 
@@ -759,10 +759,10 @@ def main() -> None:
 
     print("Loading StereoPep dataset …")
     ds        = hf_load_dataset(HF_REPO, "StereoPep")
-    sp              = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
-    stereo_trainval = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs_trainval"]
-    tag_pairs       = hf_load_dataset(HF_REPO, "tag_pairs")["tag_pairs"]
-    sub_pairs       = hf_load_dataset(HF_REPO, "substitution_pairs")["substitution_pairs"]
+    sp              = hf_load_dataset(HF_REPO, "diastereomer_pairs")["diastereomer_pairs"]
+    stereo_trainval = hf_load_dataset(HF_REPO, "diastereomer_pairs")["diastereomer_pairs_trainval"]
+    terminal_tag_pairs       = hf_load_dataset(HF_REPO, "terminal_tag_pairs")["terminal_tag_pairs"]
+    sub_pairs       = hf_load_dataset(HF_REPO, "point_mutant_pairs")["point_mutant_pairs"]
 
     print("Loading/generating 3D conformers (ETKDGv3) …")
     graphs_train, bad_train = load_or_encode_smiles_3d(
@@ -788,7 +788,7 @@ def main() -> None:
         seed,
         graphs_train, graphs_val, graphs_test,
         y_train, y_val, y_test,
-        sp, stereo_trainval, tag_pairs, sub_pairs,
+        sp, stereo_trainval, terminal_tag_pairs, sub_pairs,
         conf_seed=conf_seed,
         cache_dir=cache_dir,
         weights_path=weights_path,

@@ -3,3 +3,8 @@
 benchmarks/output/
 benchmarks/__pycache__
 \arxiv
+conftest.py
+test_benchmarks.py
+.pytest_cache
+__pycache__
+benchmarks/weights

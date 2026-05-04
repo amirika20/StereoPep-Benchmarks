@@ -19,10 +19,10 @@ A custom dataset with a normalized retention-time target `B` (0–100 scale). Lo
 | Split | Description |
 |---|---|
 | `stereopep` | Main train / val / test splits |
-| `stereo_pairs` | Matched pairs `(seq_f, seq_F)` — same peptide with D-Phe vs L-Phe; `delta_B = B_f - B_F` |
-| `stereo_pairs_trainval` | Same stereo pairs drawn from train/val sequences |
-| `tag_pairs` | Pairs differing by an N-terminal tag addition |
-| `substitution_pairs` | Pairs differing by a single amino-acid point substitution |
+| `diastereomer_pairs` | Matched pairs `(seq_f, seq_F)` — same peptide with D-Phe vs L-Phe; `delta_B = B_f - B_F` |
+| `diastereomer_pairs_trainval` | Same stereo pairs drawn from train/val sequences |
+| `terminal_tag_pairs` | Pairs differing by an N-terminal tag addition |
+| `point_mutant_pairs` | Pairs differing by a single amino-acid point substitution |
 
 ### DIA (local)
 

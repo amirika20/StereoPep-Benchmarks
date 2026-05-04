@@ -16,7 +16,7 @@ Pipeline:
   3. Fine-tune the GNN end-to-end together with a small MLP head to predict
      B (retention time, normalised 0-100) on the stereopep train split.
   4. Evaluate on test split with regression metrics.
-  5. Evaluate stereochemistry ordering accuracy on stereo_pairs (D-Phe vs
+  5. Evaluate stereochemistry ordering accuracy on diastereomer_pairs (D-Phe vs
      L-Phe).
 
 Results are written to benchmarks/results_pretrained_gin_seed{N}.json.
@@ -481,7 +481,7 @@ def eval_pair_metrics(
     smiles_col_a: str,
     smiles_col_b: str,
 ) -> dict:
-    """Evaluate predicted delta for any pair split (tag_pairs / substitution_pairs)."""
+    """Evaluate predicted delta for any pair split (terminal_tag_pairs / point_mutant_pairs)."""
     delta_B    = np.array(ds["delta_B"], dtype=np.float64)
     graphs_a, bad_a = encode_smiles(list(ds[smiles_col_a]), desc=f"Pairs {smiles_col_a}")
     graphs_b, bad_b = encode_smiles(list(ds[smiles_col_b]), desc=f"Pairs {smiles_col_b}")
@@ -552,7 +552,7 @@ def run_one_seed(
     y_test: np.ndarray,
     sp,
     stereo_trainval,
-    tag_pairs,
+    terminal_tag_pairs,
     sub_pairs,
     weights_path: Path | None = None,
 ) -> tuple[dict, dict, dict, dict, dict, list[dict]]:
@@ -601,7 +601,7 @@ def run_one_seed(
     print(f"  Trainval ordering accuracy: {stereo_trainval_metrics['ordering_acc']:.4f}"
           f"  ({stereo_trainval_metrics['n_correct']}/{stereo_trainval_metrics['n_pairs']})")
 
-    tag_metrics = eval_pair_metrics(model, tag_pairs, "SMILES_untagged", "SMILES_tagged")
+    tag_metrics = eval_pair_metrics(model, terminal_tag_pairs, "SMILES_untagged", "SMILES_tagged")
     print(f"  Tag-pair delta Pearson: {tag_metrics['delta_pearson']:+.4f}")
     sub_metrics = eval_pair_metrics(model, sub_pairs, "SMILES_1", "SMILES_2")
     print(f"  Substitution-pair delta Pearson: {sub_metrics['delta_pearson']:+.4f}")
@@ -629,10 +629,10 @@ def main() -> None:
 
     print("Loading stereopep dataset …")
     ds        = hf_load_dataset(HF_REPO, "StereoPep")
-    sp              = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
-    stereo_trainval = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs_trainval"]
-    tag_pairs       = hf_load_dataset(HF_REPO, "tag_pairs")["tag_pairs"]
-    sub_pairs       = hf_load_dataset(HF_REPO, "substitution_pairs")["substitution_pairs"]
+    sp              = hf_load_dataset(HF_REPO, "diastereomer_pairs")["diastereomer_pairs"]
+    stereo_trainval = hf_load_dataset(HF_REPO, "diastereomer_pairs")["diastereomer_pairs_trainval"]
+    terminal_tag_pairs       = hf_load_dataset(HF_REPO, "terminal_tag_pairs")["terminal_tag_pairs"]
+    sub_pairs       = hf_load_dataset(HF_REPO, "point_mutant_pairs")["point_mutant_pairs"]
 
     graphs_train, _ = encode_smiles(ds["train"]["SMILES"], desc="Graphs train")
     graphs_val,   _ = encode_smiles(ds["val"]["SMILES"],   desc="Graphs val  ")
@@ -647,7 +647,7 @@ def main() -> None:
     print(f"\n── Seed {seed} ──")
     test_metrics, train_metrics, stereo_metrics, stereo_trainval_metrics, tag_metrics, sub_metrics, history = run_one_seed(
         seed, graphs_train, graphs_val, graphs_test, y_train, y_val, y_test, sp,
-        stereo_trainval, tag_pairs, sub_pairs, weights_path=weights_path,
+        stereo_trainval, terminal_tag_pairs, sub_pairs, weights_path=weights_path,
     )
 
     config = {
