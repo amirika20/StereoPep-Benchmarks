@@ -386,7 +386,7 @@ def eval_pair_metrics(
     y_min: float,
     y_max: float,
 ) -> dict:
-    """Evaluate predicted delta for any pair split (tag_pairs / substitution_pairs)."""
+    """Evaluate predicted delta for any pair split (terminal_tag_pairs / point_mutant_pairs)."""
     seqs_a  = list(ds[seq_col_a])
     seqs_b  = list(ds[seq_col_b])
     delta_B = np.array(ds["delta_B"], dtype=np.float64)
@@ -457,7 +457,7 @@ def run_one_seed(
     stereo_trainval,
     y_min: float,
     y_max: float,
-    tag_pairs,
+    terminal_tag_pairs,
     sub_pairs,
     weights_path: Path | None = None,
 ) -> tuple[dict, dict, dict, dict, dict, dict]:
@@ -510,7 +510,7 @@ def run_one_seed(
     print(f"  Trainval ordering accuracy: {stereo_trainval_metrics['ordering_acc']:.4f}  "
           f"({stereo_trainval_metrics['n_correct']}/{stereo_trainval_metrics['n_pairs']})")
 
-    tag_metrics = eval_pair_metrics(trained_models, tag_pairs, "Sequence_untagged", "Sequence_tagged", y_min, y_max)
+    tag_metrics = eval_pair_metrics(trained_models, terminal_tag_pairs, "Sequence_untagged", "Sequence_tagged", y_min, y_max)
     print(f"  Tag-pair delta Pearson: {tag_metrics['delta_pearson']:+.4f}")
     sub_metrics = eval_pair_metrics(trained_models, sub_pairs, "Sequence_1", "Sequence_2", y_min, y_max)
     print(f"  Substitution-pair delta Pearson: {sub_metrics['delta_pearson']:+.4f}")
@@ -536,10 +536,10 @@ def main() -> None:
 
     print("[data] Loading stereopep dataset …")
     ds        = hf_load_dataset(HF_REPO, "StereoPep")
-    stereo          = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
-    stereo_trainval = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs_trainval"]
-    tag_pairs       = hf_load_dataset(HF_REPO, "tag_pairs")["tag_pairs"]
-    sub_pairs       = hf_load_dataset(HF_REPO, "substitution_pairs")["substitution_pairs"]
+    stereo          = hf_load_dataset(HF_REPO, "diastereomer_pairs")["diastereomer_pairs"]
+    stereo_trainval = hf_load_dataset(HF_REPO, "diastereomer_pairs")["diastereomer_pairs_trainval"]
+    terminal_tag_pairs       = hf_load_dataset(HF_REPO, "terminal_tag_pairs")["terminal_tag_pairs"]
+    sub_pairs       = hf_load_dataset(HF_REPO, "point_mutant_pairs")["point_mutant_pairs"]
 
     print("[tokenize] Building token tensors …")
     tok_tr = tokenize_batch(list(ds["train"]["Peptide"]))
@@ -567,7 +567,7 @@ def main() -> None:
     print(f"\n── Seed {seed} ──")
     test_metrics, train_metrics, stereo_metrics, stereo_trainval_metrics, tag_metrics, sub_metrics, histories = run_one_seed(
         seed, train_loader, val_loader, tok_tr, y_train_raw.numpy(), tok_te, y_test, stereo, stereo_trainval,
-        y_min, y_max, tag_pairs, sub_pairs, weights_path=weights_path,
+        y_min, y_max, terminal_tag_pairs, sub_pairs, weights_path=weights_path,
     )
 
     print(f"\nTotal time: {time.time() - t0:.1f}s")

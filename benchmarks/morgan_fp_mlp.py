@@ -5,7 +5,7 @@ Pipeline:
   1. Compute Morgan fingerprints (radius=2, 2048 bits) from full peptide SMILES.
   2. Train a small MLP to predict B (retention time, normalised 0-100).
   3. Evaluate on test split with regression metrics.
-  4. Evaluate stereochemistry ordering accuracy on the stereo_pairs split:
+  4. Evaluate stereochemistry ordering accuracy on the diastereomer_pairs split:
      for every (f, F) pair, check whether the model predicts the correct
      elution order (D-Phe vs L-Phe).
 
@@ -286,7 +286,7 @@ def eval_pair_metrics(
     smiles_col_a: str,
     smiles_col_b: str,
 ) -> dict:
-    """Evaluate predicted delta for any pair split (tag_pairs / substitution_pairs)."""
+    """Evaluate predicted delta for any pair split (terminal_tag_pairs / point_mutant_pairs)."""
     delta_B    = np.array(ds["delta_B"], dtype=np.float64)
     X_a, bad_a = encode_split(list(ds[smiles_col_a]))
     X_b, bad_b = encode_split(list(ds[smiles_col_b]))
@@ -348,7 +348,7 @@ def save_results(
 # ── main ──────────────────────────────────────────────────────────────────────
 
 def run_one_seed(seed: int, X_train, X_val, X_test, y_train, y_val, y_test, sp,
-                 stereo_trainval, tag_pairs, sub_pairs, weights_path: Path | None = None):
+                 stereo_trainval, terminal_tag_pairs, sub_pairs, weights_path: Path | None = None):
     torch.manual_seed(seed)
     np.random.seed(seed)
 
@@ -390,7 +390,7 @@ def run_one_seed(seed: int, X_train, X_val, X_test, y_train, y_val, y_test, sp,
     print(f"  Trainval ordering accuracy: {stereo_trainval_metrics['ordering_acc']:.4f}"
           f"  ({stereo_trainval_metrics['n_correct']}/{stereo_trainval_metrics['n_pairs']})")
 
-    tag_metrics = eval_pair_metrics(model, tag_pairs, "SMILES_untagged", "SMILES_tagged")
+    tag_metrics = eval_pair_metrics(model, terminal_tag_pairs, "SMILES_untagged", "SMILES_tagged")
     print(f"  Tag-pair delta Pearson: {tag_metrics['delta_pearson']:+.4f}")
     sub_metrics = eval_pair_metrics(model, sub_pairs, "SMILES_1", "SMILES_2")
     print(f"  Substitution-pair delta Pearson: {sub_metrics['delta_pearson']:+.4f}")
@@ -422,10 +422,10 @@ def main() -> None:
     # Load dataset once
     print("Loading stereopep dataset …")
     ds        = hf_load_dataset(HF_REPO, "StereoPep")
-    sp              = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
-    stereo_trainval = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs_trainval"]
-    tag_pairs       = hf_load_dataset(HF_REPO, "tag_pairs")["tag_pairs"]
-    sub_pairs       = hf_load_dataset(HF_REPO, "substitution_pairs")["substitution_pairs"]
+    sp              = hf_load_dataset(HF_REPO, "diastereomer_pairs")["diastereomer_pairs"]
+    stereo_trainval = hf_load_dataset(HF_REPO, "diastereomer_pairs")["diastereomer_pairs_trainval"]
+    terminal_tag_pairs       = hf_load_dataset(HF_REPO, "terminal_tag_pairs")["terminal_tag_pairs"]
+    sub_pairs       = hf_load_dataset(HF_REPO, "point_mutant_pairs")["point_mutant_pairs"]
 
     # Encode fingerprints once (deterministic)
     for split_name in ("train", "val", "test"):
@@ -445,7 +445,7 @@ def main() -> None:
     weights_path = WEIGHTS_DIR / f"results_morgan_mlp_seed{seed}.pt"
     print(f"\n── Seed {seed} ──")
     test_metrics, train_metrics, stereo_metrics, stereo_trainval_metrics, tag_metrics, sub_metrics, history = run_one_seed(
-        seed, X_train, X_val, X_test, y_train, y_val, y_test, sp, stereo_trainval, tag_pairs, sub_pairs,
+        seed, X_train, X_val, X_test, y_train, y_val, y_test, sp, stereo_trainval, terminal_tag_pairs, sub_pairs,
         weights_path=weights_path,
     )
 

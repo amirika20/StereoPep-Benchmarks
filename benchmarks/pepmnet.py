@@ -907,8 +907,8 @@ def main() -> None:
 
     print("[data] Loading stereopep dataset …")
     ds     = hf_load_dataset(HF_REPO, "StereoPep")
-    stereo          = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
-    stereo_trainval = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs_trainval"]
+    stereo          = hf_load_dataset(HF_REPO, "diastereomer_pairs")["diastereomer_pairs"]
+    stereo_trainval = hf_load_dataset(HF_REPO, "diastereomer_pairs")["diastereomer_pairs_trainval"]
 
     kwargs = dict(
         node_ft_dict=node_ft_dict, edge_ft_dict=edge_ft_dict,

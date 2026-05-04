@@ -71,9 +71,9 @@ def main() -> None:
 
     print("Loading StereoPep dataset …")
     ds        = hf_load_dataset(HF_REPO, "StereoPep")
-    sp        = hf_load_dataset(HF_REPO, "stereo_pairs")["stereo_pairs"]
-    tag_pairs = hf_load_dataset(HF_REPO, "tag_pairs")["tag_pairs"]
-    sub_pairs = hf_load_dataset(HF_REPO, "substitution_pairs")["substitution_pairs"]
+    sp        = hf_load_dataset(HF_REPO, "diastereomer_pairs")["diastereomer_pairs"]
+    terminal_tag_pairs = hf_load_dataset(HF_REPO, "terminal_tag_pairs")["terminal_tag_pairs"]
+    sub_pairs = hf_load_dataset(HF_REPO, "point_mutant_pairs")["point_mutant_pairs"]
     print()
 
     # ── main splits ──────────────────────────────────────────────────────────
@@ -92,14 +92,14 @@ def main() -> None:
     print("=== Stereo pairs ===")
     precompute_split(
         list(sp["SMILES_f"]),
-        name="stereo_pairs_SMILES_f",
+        name="diastereomer_pairs_SMILES_f",
         conf_seed=conf_seed,
         cache_dir=cache_dir,
         force=args.force,
     )
     precompute_split(
         list(sp["SMILES_F"]),
-        name="stereo_pairs_SMILES_F",
+        name="diastereomer_pairs_SMILES_F",
         conf_seed=conf_seed,
         cache_dir=cache_dir,
         force=args.force,
@@ -109,15 +109,15 @@ def main() -> None:
     # ── tag pairs ─────────────────────────────────────────────────────────────
     print("=== Tag pairs ===")
     precompute_split(
-        list(tag_pairs["SMILES_untagged"]),
-        name="tag_pairs_SMILES_untagged",
+        list(terminal_tag_pairs["SMILES_untagged"]),
+        name="terminal_tag_pairs_SMILES_untagged",
         conf_seed=conf_seed,
         cache_dir=cache_dir,
         force=args.force,
     )
     precompute_split(
-        list(tag_pairs["SMILES_tagged"]),
-        name="tag_pairs_SMILES_tagged",
+        list(terminal_tag_pairs["SMILES_tagged"]),
+        name="terminal_tag_pairs_SMILES_tagged",
         conf_seed=conf_seed,
         cache_dir=cache_dir,
         force=args.force,
@@ -128,14 +128,14 @@ def main() -> None:
     print("=== Substitution pairs ===")
     precompute_split(
         list(sub_pairs["SMILES_1"]),
-        name="substitution_pairs_SMILES_1",
+        name="point_mutant_pairs_SMILES_1",
         conf_seed=conf_seed,
         cache_dir=cache_dir,
         force=args.force,
     )
     precompute_split(
         list(sub_pairs["SMILES_2"]),
-        name="substitution_pairs_SMILES_2",
+        name="point_mutant_pairs_SMILES_2",
         conf_seed=conf_seed,
         cache_dir=cache_dir,
         force=args.force,
