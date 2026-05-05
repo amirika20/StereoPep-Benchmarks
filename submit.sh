@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# SLURM submission script for Kempner cluster.
+# SLURM submission script.
 #
 # Usage:
 #   ./submit.sh [OPTIONS] -- SCRIPT [ARGS...]
@@ -16,7 +16,7 @@
 #
 set -euo pipefail
 
-CONDA_ENV="/n/home04/akazeminia/.conda/envs/deeprt"
+CONDA_ENV="$HOME/.conda/envs/deeprt"
 
 SEEDS=""
 TIME="0-24:00"
@@ -80,8 +80,6 @@ SBATCH_SCRIPT=$(mktemp /tmp/deeprt_submit.XXXXXX.sh)
 cat > "$SBATCH_SCRIPT" <<SBATCH_EOF
 #!/bin/bash
 #SBATCH --job-name=$JOB_NAME
-#SBATCH --partition=kempner
-#SBATCH --account=kempner_mzitnik_lab
 #SBATCH --time=$TIME
 #SBATCH --gres=gpu:$GPUS
 #SBATCH --mem=$MEM
@@ -94,8 +92,6 @@ $ARRAY_LINE
 
 set -euo pipefail
 
-module load cuda/12.9.1-fasrc01
-
 # Use local /tmp for HF cache to avoid NFS file-locking errors
 export HF_DATASETS_CACHE=/tmp/\${USER}/hf_cache
 export HF_HOME=/tmp/\${USER}/hf_home
@@ -107,8 +103,6 @@ $SEED_LOGIC
 
 $CONDA_ENV/bin/python $SCRIPT $EXTRA_ARGS \$SEED_OVERRIDE
 SBATCH_EOF
-
-export HF_TOKEN=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
 
 if $DRY_RUN; then
     cat "$SBATCH_SCRIPT"

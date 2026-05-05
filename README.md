@@ -108,7 +108,7 @@ StereoPep-Benchmarks/
 │   └── latex_*.tex               # Auto-generated LaTeX tables for the paper
 │
 ├── figures/                      # Auto-generated plots (bar charts, scatter, radar)
-├── submit.sh                     # Generic SLURM submission helper (Kempner cluster)
+├── submit.sh                     # Generic SLURM submission helper
 └── requirements.txt
 ```
 
@@ -124,7 +124,7 @@ python benchmarks/deeplc.py --seed 0 --epochs 50
 
 Saves weights to `benchmarks/pretrained_weights/results_deeplc_seed0.pt` and results to `benchmarks/output/results_deeplc_seed0.json`. On re-run, weights are loaded and training is skipped.
 
-### 2. Submit all benchmarks across seeds (Harvard Kempner cluster)
+### 2. Submit all benchmarks across seeds (SLURM cluster)
 
 ```bash
 # Submit all models, seeds 0–9

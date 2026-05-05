@@ -7,7 +7,7 @@ so results land in benchmarks_dia/output/results_<name>_dia_seed<N>.json.
 
 Usage
 -----
-  # Submit all benchmarks, seeds 0-4, on Kempner
+  # Submit all benchmarks, seeds 0-4
   python benchmarks_dia/submit_benchmarks.py
 
   # Submit only two benchmarks with 10 seeds
@@ -202,7 +202,7 @@ def main() -> None:
     if not SUBMIT_SH.exists():
         parser.error(f"submit.sh not found at {SUBMIT_SH}")
 
-    print(f"Submitting {len(args.benchmarks)} DIA benchmark(s) on Kempner")
+    print(f"Submitting {len(args.benchmarks)} DIA benchmark(s)")
     print(f"Seeds: {args.seeds}  |  Epochs: {args.epochs}")
     if args.dry_run:
         print("(dry run)")
