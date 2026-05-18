@@ -46,7 +46,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
 # ── config ────────────────────────────────────────────────────────────────────
-HF_REPO      = "amirka20/StereoPep"
+HF_REPO      = "stereopep-ano/StereoPep"
 
 MAX_LEN      = 20          # pad/truncate to this many residues
 KERNEL_SIZES = [2, 4, 8]   # three models → averaged ensemble

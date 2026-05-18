@@ -25,7 +25,7 @@ from scipy import stats
 REPO_ROOT = Path(__file__).parent.parent
 DATA_DIR = REPO_ROOT / "data"
 RESULTS_FILE = Path(__file__).parent / "output" / "results.txt"
-HF_REPO = "amirka20/StereoPep"
+HF_REPO = "stereopep-ano/StereoPep"
 
 # ── per-residue lookup tables ─────────────────────────────────────────────────
 # Kyte-Doolittle hydrophobicity scale

@@ -38,7 +38,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
 # ── config ────────────────────────────────────────────────────────────────────
-HF_REPO     = "amirka20/StereoPep"
+HF_REPO     = "stereopep-ano/StereoPep"
 
 D_MODEL     = 128
 N_HEADS     = 4

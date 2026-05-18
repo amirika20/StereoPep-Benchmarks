@@ -12,9 +12,9 @@ Most peptide RT models are trained on canonical L-amino acid sequences. This ben
 
 ## Datasets
 
-### StereoPep (`amirka20/StereoPep` on HuggingFace)
+### StereoPep (`stereopep-ano/StereoPep` on HuggingFace)
 
-A custom dataset with a normalized retention-time target `B` (0–100 scale). Loaded via `datasets.load_dataset("amirka20/StereoPep", ...)`.
+A custom dataset with a normalized retention-time target `B` (0–100 scale). Loaded via `datasets.load_dataset("stereopep-ano/StereoPep", ...)`.
 
 | Split | Description |
 |---|---|

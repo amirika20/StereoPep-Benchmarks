@@ -34,7 +34,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, r
 from torch.utils.data import DataLoader, TensorDataset
 
 # ── config ────────────────────────────────────────────────────────────────────
-HF_REPO       = "amirka20/StereoPep"
+HF_REPO       = "stereopep-ano/StereoPep"
 FP_RADIUS     = 2
 FP_NBITS      = 2048
 FP_CHIRALITY  = True   # must be True to distinguish D-Phe ('f') from L-Phe ('F')

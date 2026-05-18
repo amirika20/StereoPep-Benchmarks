@@ -8,7 +8,7 @@ from data.Tokenizer import PeptideTokenizer, ContinuousValueTokenizer
 
 
 VOCAB_FILE = Path(__file__).parent / "PEPLM_WORDS.csv"
-HF_REPO = "amirka20/StereoPep"
+HF_REPO = "stereopep-ano/StereoPep"
 
 
 class PeptideDataset(Dataset):

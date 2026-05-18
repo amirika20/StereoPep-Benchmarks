@@ -58,7 +58,7 @@ except ImportError:
 warnings.filterwarnings("ignore", category=UserWarning)
 
 # ── config ─────────────────────────────────────────────────────────────────────
-HF_REPO = "amirka20/StereoPep"
+HF_REPO = "stereopep-ano/StereoPep"
 
 # PepMNet RT hyperparameters (from paper / rt_main.py defaults)
 HIDDEN_NN_1  = 500
