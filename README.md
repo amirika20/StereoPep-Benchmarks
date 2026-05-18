@@ -1,12 +1,15 @@
-# StereoPep-Benchmarks
-
-A comprehensive benchmarking suite for **peptide retention-time (RT) prediction**, with a central focus on **stereoisomer discrimination** — whether existing ML models can distinguish D-amino acids from their L-amino acid counterparts (specifically D-Phe `f` vs L-Phe `F`).
+<p align="center"><img src="assets/GraphAbs.png" alt="logo" width="600px" /></p>
 
 ---
 
-## Scientific Goal
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![HuggingFace Dataset](https://img.shields.io/badge/🤗%20Dataset-stereopep--ano%2FStereoPep-yellow)](https://huggingface.co/datasets/stereopep-ano/StereoPep)
 
-Most peptide RT models are trained on canonical L-amino acid sequences. This benchmark evaluates whether such models can correctly **rank diastereomers** — peptide pairs that differ only in the chirality of a single residue. The results show that most models perform near chance (50%) on this task, which is the paper's central finding.
+[**arXiv Preprint**](https://arxiv.org/abs/PLACEHOLDER) | [**HuggingFace Dataset**](https://huggingface.co/datasets/stereopep-ano/StereoPep) | [**GitHub**](https://github.com/amirika20/StereoPep-Benchmarks)
+
+# StereoPep-Benchmarks
+
+A comprehensive benchmarking suite for **peptide retention-time (RT) prediction**, with a central focus on **stereoisomer discrimination** — whether existing ML models can distinguish D-amino acids from their L-amino acid counterparts (specifically D-Phe `f` vs L-Phe `F`).
 
 ---
 
