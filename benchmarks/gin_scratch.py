@@ -38,7 +38,7 @@ from torch_geometric.utils import add_self_loops
 from torch.utils.data import DataLoader as PlainDataLoader
 
 # ── config ────────────────────────────────────────────────────────────────────
-HF_REPO = "amirka20/StereoPep"
+HF_REPO = "stereopep-ano/StereoPep"
 
 # GIN architecture (kept identical to pretrained_gin.py for fair comparison)
 NUM_ATOM_TYPES     = 120

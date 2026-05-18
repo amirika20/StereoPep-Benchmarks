@@ -60,7 +60,7 @@ if _hf_token:
     _hf_login(token=_hf_token, add_to_git_credential=False)
 
 # ── config ────────────────────────────────────────────────────────────────────
-HF_REPO      = "amirka20/StereoPep"
+HF_REPO      = "stereopep-ano/StereoPep"
 
 # Model registry ──────────────────────────────────────────────────────────────
 # import_fn  : name of the loader in esm.pretrained

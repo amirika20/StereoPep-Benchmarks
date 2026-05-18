@@ -46,7 +46,7 @@ from tqdm import tqdm
 warnings.filterwarnings("ignore", category=UserWarning)
 
 # ── config ─────────────────────────────────────────────────────────────────────
-HF_REPO = "amirka20/StereoPep"
+HF_REPO = "stereopep-ano/StereoPep"
 
 # 3D graph
 RADIUS_CUTOFF     = 5.0    # Ångström — typical for small-molecule GNNs
