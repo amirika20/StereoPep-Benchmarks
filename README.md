@@ -3,13 +3,25 @@
 ---
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
-[![HuggingFace Dataset](https://img.shields.io/badge/🤗%20Dataset-stereopep--ano%2FStereoPep-yellow)](https://huggingface.co/datasets/stereopep-ano/StereoPep)
+[![HuggingFace Dataset](https://img.shields.io/badge/🤗%20Dataset-stereopep--ano%2FStereoPep-yellow)](https://huggingface.co/datasets/amirka20/StereoPep)
 
-[**arXiv Preprint**](https://arxiv.org/abs/PLACEHOLDER) | [**HuggingFace Dataset**](https://huggingface.co/datasets/stereopep-ano/StereoPep) | [**GitHub**](https://github.com/amirika20/StereoPep-Benchmarks)
+[**arXiv Preprint**](https://arxiv.org/abs/PLACEHOLDER) | [**HuggingFace Dataset**](https://huggingface.co/datasets/amirka20/StereoPep) | [**GitHub**](https://github.com/amirika20/StereoPep-Benchmarks) | [**Dataset Curation**](https://github.com/amirika20/StereoPep-Curation)
 
 # StereoPep-Benchmarks
 
 A comprehensive benchmarking suite for **peptide retention-time (RT) prediction**, with a central focus on **stereoisomer discrimination** — whether existing ML models can distinguish D-amino acids from their L-amino acid counterparts (specifically D-Phe `f` vs L-Phe `F`).
+
+---
+
+## What Are Stereoisomers?
+
+**Stereoisomers** are molecules that share the same molecular formula and the same sequence of bonded elements, but differ in the three-dimensional orientation of their atoms. This distinction arises at **chirality centers** — carbon atoms bonded to four different substituents — where the spatial arrangement can produce non-superimposable mirror images.
+
+<p align="center"><img src="assets/Stereochemistry.png" alt="Mirror images of chirality centers" width="500px" /></p>
+
+The two mirror-image forms are called **enantiomers** (L- and D-). When a molecule has multiple chirality centers and the configurations differ at only some of them, the resulting isomers are called **diastereomers**. Unlike constitutional isomers, stereoisomers have identical connectivity, making them very difficult for sequence-based models to distinguish.
+
+In the context of peptides, **L-amino acids** are the natural, biologically dominant form, while **D-amino acids** are their mirror-image counterparts. Despite having the same sequence string (e.g., the same SMILES graph topology), D- and L-amino acid residues interact differently with chromatographic columns, producing distinct **retention times** in LC-MS/MS experiments. This benchmark tests whether ML models can detect that difference.
 
 ---
 
@@ -69,7 +81,7 @@ The same set of models is benchmarked on both datasets. Each model is run with 1
 **Stereo-pair metrics** (StereoPep only):
 
 Given matched pairs `(seq_f, seq_F)`, `pred_delta = pred_f - pred_F` is computed and measured with:
-- **Ordering accuracy** — fraction of pairs where the model correctly ranks D vs L
+- **Pairwise accuracy** — fraction of pairs where the model correctly ranks D vs L
 - **Delta-Pearson / Spearman / Kendall** — correlation of predicted deltas with true deltas
 - **Delta-AUC** — ROC-AUC treating the sign of the delta as a binary label
 
@@ -187,3 +199,20 @@ From `metrics/latex_overall_performance.tex` (mean ± std over 10 seeds):
 | Morgan FP MLP | 0.506 ± 0.021 | 0.534 ± 0.026 | 9.38 ± 0.18 |
 
 Stereo-pair ordering accuracy and delta metrics are reported in `metrics/latex_diastereomer_performance.tex`.
+
+---
+
+## Citation
+
+If you use the StereoPep dataset, please cite:
+
+```bibtex
+@misc{amirabbas_kazeminia_2026,
+	author       = { Amirabbas Kazeminia and Michael Desgagné },
+	title        = { StereoPep (Revision 3848950) },
+	year         = 2026,
+	url          = { https://huggingface.co/datasets/amirka20/StereoPep },
+	doi          = { 10.57967/hf/8658 },
+	publisher    = { Hugging Face }
+}
+```
