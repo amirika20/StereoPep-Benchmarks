@@ -68,6 +68,18 @@ BENCHMARKS: dict[str, dict] = {
         "mem":     "32G",
         "gpus":    1,
     },
+    "pepland": {
+        # Requires benchmarks/pretrained_weights/pepland_embeddings.pt to already
+        # exist — precompute it once with:
+        #   conda activate pepland_gpu
+        #   python benchmarks/pepland_precompute_embeddings.py
+        # (see that script's docstring; pepland needs dgl, which isn't installed
+        # in this repo's main env).
+        "script":  "benchmarks/pepland.py",
+        "time":    "0-04:00",
+        "mem":     "32G",
+        "gpus":    1,
+    },
     # "egnn_3d": {
     #     "script":  "benchmarks/egnn_3d.py",
     #     "time":    "0-08:00",
