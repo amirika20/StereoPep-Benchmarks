@@ -113,6 +113,32 @@ BENCHMARKS: dict[str, dict] = {
         "gpus":    1,
         "extra":   ["--model", "esmc_600m"],
     },
+    # PeptideCLM-2 (https://github.com/AaronFeller/PeptideCLM-2) — one variant
+    # per pretraining objective, at the "base" (~0.1B) size. The script itself
+    # (benchmarks/peptideclm2_embedding.py) supports all 9 objective x size
+    # combinations via --model; these three were chosen to compare objectives
+    # at a fixed scale rather than sweep every size.
+    "peptideclm2_mlm_base": {
+        "script":  "benchmarks/peptideclm2_embedding.py",
+        "time":    "0-06:00",
+        "mem":     "64G",
+        "gpus":    1,
+        "extra":   ["--model", "mlm_base"],
+    },
+    "peptideclm2_hybrid_base": {
+        "script":  "benchmarks/peptideclm2_embedding.py",
+        "time":    "0-06:00",
+        "mem":     "64G",
+        "gpus":    1,
+        "extra":   ["--model", "hybrid_base"],
+    },
+    "peptideclm2_mtr_base": {
+        "script":  "benchmarks/peptideclm2_embedding.py",
+        "time":    "0-06:00",
+        "mem":     "64G",
+        "gpus":    1,
+        "extra":   ["--model", "mtr_base"],
+    },
 }
 
 # Root of the repository (one level up from this file)
