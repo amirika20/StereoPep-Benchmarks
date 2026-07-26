@@ -593,18 +593,22 @@ def run_one_seed(
     train_metrics = regression_metrics(y_train, y_pred_train)
     print(f"  [train] RMSE={train_metrics['rmse']:.4f}  Pearson={train_metrics['pearson']:+.4f}")
 
-    stereo_metrics = stereo_ordering_accuracy(model, sp)
-    print(f"  Ordering accuracy: {stereo_metrics['ordering_acc']:.4f}"
-          f"  ({stereo_metrics['n_correct']}/{stereo_metrics['n_pairs']})")
+    if sp is not None:
+        stereo_metrics = stereo_ordering_accuracy(model, sp)
+        print(f"  Ordering accuracy: {stereo_metrics['ordering_acc']:.4f}"
+              f"  ({stereo_metrics['n_correct']}/{stereo_metrics['n_pairs']})")
 
-    stereo_trainval_metrics = stereo_ordering_accuracy(model, stereo_trainval)
-    print(f"  Trainval ordering accuracy: {stereo_trainval_metrics['ordering_acc']:.4f}"
-          f"  ({stereo_trainval_metrics['n_correct']}/{stereo_trainval_metrics['n_pairs']})")
+        stereo_trainval_metrics = stereo_ordering_accuracy(model, stereo_trainval)
+        print(f"  Trainval ordering accuracy: {stereo_trainval_metrics['ordering_acc']:.4f}"
+              f"  ({stereo_trainval_metrics['n_correct']}/{stereo_trainval_metrics['n_pairs']})")
 
-    tag_metrics = eval_pair_metrics(model, terminal_tag_pairs, "SMILES_untagged", "SMILES_tagged")
-    print(f"  Tag-pair delta Pearson: {tag_metrics['delta_pearson']:+.4f}")
-    sub_metrics = eval_pair_metrics(model, sub_pairs, "SMILES_1", "SMILES_2")
-    print(f"  Substitution-pair delta Pearson: {sub_metrics['delta_pearson']:+.4f}")
+        tag_metrics = eval_pair_metrics(model, terminal_tag_pairs, "SMILES_untagged", "SMILES_tagged")
+        print(f"  Tag-pair delta Pearson: {tag_metrics['delta_pearson']:+.4f}")
+        sub_metrics = eval_pair_metrics(model, sub_pairs, "SMILES_1", "SMILES_2")
+        print(f"  Substitution-pair delta Pearson: {sub_metrics['delta_pearson']:+.4f}")
+    else:
+        print("  (pair evals skipped — natural-only dataset has no diastereomer/tag/mutation pairs)")
+        stereo_metrics = stereo_trainval_metrics = tag_metrics = sub_metrics = None
 
     return test_metrics, train_metrics, stereo_metrics, stereo_trainval_metrics, tag_metrics, sub_metrics, history
 
@@ -616,23 +620,32 @@ def main() -> None:
                         help="Training seed (default: 0)")
     parser.add_argument("--epochs", type=int, default=MAX_EPOCHS,
                         help=f"Max training epochs (default: {MAX_EPOCHS})")
+    parser.add_argument("--dataset", choices=["stereopep", "natural"], default="stereopep",
+                        help="'stereopep' (default): full dataset, includes diastereomer/tag/mutation "
+                             "pair evals. 'natural': canonical-amino-acid-only subset; pair evals are "
+                             "skipped since they require non-canonical/D-form peptides.")
     args = parser.parse_args()
     seed = args.seed
+    natural = args.dataset == "natural"
 
     MAX_EPOCHS  = args.epochs
     PATIENCE    = max(1, int(0.10 * MAX_EPOCHS))
 
-    print(f"Device: {DEVICE}  |  seed={seed}  |  max_epochs={MAX_EPOCHS}  |  patience={PATIENCE}")
+    print(f"Device: {DEVICE}  |  seed={seed}  |  dataset={args.dataset}  "
+          f"|  max_epochs={MAX_EPOCHS}  |  patience={PATIENCE}")
 
     print("Checking pretrained GIN weights …")
     download_weights()
 
-    print("Loading stereopep dataset …")
-    ds        = hf_load_dataset(HF_REPO, "StereoPep")
-    sp              = hf_load_dataset(HF_REPO, "diastereomer_pairs")["diastereomer_pairs"]
-    stereo_trainval = hf_load_dataset(HF_REPO, "diastereomer_pairs")["diastereomer_pairs_trainval"]
-    terminal_tag_pairs       = hf_load_dataset(HF_REPO, "terminal_tag_pairs")["terminal_tag_pairs"]
-    sub_pairs       = hf_load_dataset(HF_REPO, "point_mutant_pairs")["point_mutant_pairs"]
+    print(f"Loading stereopep dataset (config={'natural' if natural else 'StereoPep'}) …")
+    ds = hf_load_dataset(HF_REPO, "natural" if natural else "StereoPep")
+    if natural:
+        sp = stereo_trainval = terminal_tag_pairs = sub_pairs = None
+    else:
+        sp              = hf_load_dataset(HF_REPO, "diastereomer_pairs")["diastereomer_pairs"]
+        stereo_trainval = hf_load_dataset(HF_REPO, "diastereomer_pairs")["diastereomer_pairs_trainval"]
+        terminal_tag_pairs       = hf_load_dataset(HF_REPO, "terminal_tag_pairs")["terminal_tag_pairs"]
+        sub_pairs       = hf_load_dataset(HF_REPO, "point_mutant_pairs")["point_mutant_pairs"]
 
     graphs_train, _ = encode_smiles(ds["train"]["SMILES"], desc="Graphs train")
     graphs_val,   _ = encode_smiles(ds["val"]["SMILES"],   desc="Graphs val  ")
@@ -643,7 +656,8 @@ def main() -> None:
     y_test  = np.array(ds["test"]["B"],  dtype=np.float32)
     print(f"  train={len(y_train)}  val={len(y_val)}  test={len(y_test)}")
 
-    weights_path = WEIGHTS_DIR / f"results_pretrained_gin_seed{seed}.pt"
+    stem = "results_pretrained_gin_natural" if natural else "results_pretrained_gin"
+    weights_path = WEIGHTS_DIR / f"{stem}_seed{seed}.pt"
     print(f"\n── Seed {seed} ──")
     test_metrics, train_metrics, stereo_metrics, stereo_trainval_metrics, tag_metrics, sub_metrics, history = run_one_seed(
         seed, graphs_train, graphs_val, graphs_test, y_train, y_val, y_test, sp,
@@ -651,6 +665,7 @@ def main() -> None:
     )
 
     config = {
+        "dataset": args.dataset,
         "gin_layers": GIN_LAYERS, "gin_emb_dim": GIN_EMB_DIM,
         "head_hidden": HEAD_HIDDEN, "head_layers": HEAD_LAYERS,
         "dropout": DROPOUT, "lr_backbone": LR_BACKBONE, "lr_head": LR_HEAD,
@@ -662,7 +677,7 @@ def main() -> None:
         "best_val_loss": min(h["val_loss"] for h in history),
     }
     save_results(seed, test_metrics, train_metrics, stereo_metrics, stereo_trainval_metrics,
-                 tag_metrics, sub_metrics, training, config, RESULTS_DIR, "results_pretrained_gin")
+                 tag_metrics, sub_metrics, training, config, RESULTS_DIR, stem)
 
 
 if __name__ == "__main__":
