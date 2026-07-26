@@ -33,6 +33,8 @@ os.makedirs(METRICS_DIR, exist_ok=True)
 MODEL_NAMES = {
     "results_gin_scratch":          "GIN",
     "results_pretrained_gin":       "Pretrained GIN",
+    "results_pepland":              "Pretrained PepLand",
+    "results_hybrid_base":          "PeptideCLM-2-Hybrid",
     "results_esm3_sm_embedding":    "ESM3-small",
     "results_esmc_300m_embedding":  "ESMC-300M",
     "results_esmc_600m_embedding":  "ESMC-600M",
@@ -45,6 +47,8 @@ MODEL_NAMES = {
 MODEL_ORDER = [
     "GIN",
     "Pretrained GIN",
+    "Pretrained PepLand",
+    "PeptideCLM-2-Hybrid",
     "ESM3-small",
     "ESMC-300M",
     "ESMC-600M",
@@ -56,15 +60,17 @@ MODEL_ORDER = [
 
 # Consistent colour palette (one colour per model)
 PALETTE = {
-    "GIN":             "#2171b5",
-    "Pretrained GIN":  "#6baed6",
-    "ESM3-small":      "#238b45",
-    "ESMC-300M":       "#74c476",
-    "ESMC-600M":       "#00441b",
-    "Transformer":     "#7a51a1",
-    "DeepLC":          "#e6550d",
-    "DeepRT-CapsNet":  "#c44e52",
-    "Morgan FP MLP":   "#8c6d31",
+    "GIN":                "#2171b5",
+    "Pretrained GIN":     "#6baed6",
+    "Pretrained PepLand": "#17becf",
+    "PeptideCLM-2-Hybrid": "#e377c2",
+    "ESM3-small":         "#238b45",
+    "ESMC-300M":          "#74c476",
+    "ESMC-600M":          "#00441b",
+    "Transformer":        "#7a51a1",
+    "DeepLC":             "#e6550d",
+    "DeepRT-CapsNet":     "#c44e52",
+    "Morgan FP MLP":      "#8c6d31",
 }
 
 # ---------------------------------------------------------------------------

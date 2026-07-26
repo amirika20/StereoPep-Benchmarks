@@ -7,15 +7,17 @@
     \toprule
     \textbf{Model} & \rotatebox{45}{\textbf{Pearson $r$}} & \rotatebox{45}{\textbf{Spearman $\rho$}} & \rotatebox{45}{\textbf{Kendall $\tau$}} & \rotatebox{45}{\textbf{$R^2$}} & \rotatebox{45}{\textbf{RMSE}} & \rotatebox{45}{\textbf{MAE}} & \rotatebox{45}{\textbf{Mean Error}} \\
     \midrule
-  GIN & \makecell{0.788 \\ $\pm$0.014} & \makecell{0.838 \\ $\pm$0.015} & \makecell{0.661 \\ $\pm$0.016} & \textbf{\makecell{0.584 \\ $\pm$0.038}} & \textbf{\makecell{6.649 \\ $\pm$0.300}} & \textbf{\makecell{4.474 \\ $\pm$0.177}} & \makecell{-1.798 \\ $\pm$0.634} \\
-  Pretrained GIN & \makecell{0.725 \\ $\pm$0.015} & \makecell{0.778 \\ $\pm$0.016} & \makecell{0.591 \\ $\pm$0.016} & \makecell{0.460 \\ $\pm$0.027} & \makecell{7.582 \\ $\pm$0.189} & \makecell{5.234 \\ $\pm$0.150} & \makecell{-2.619 \\ $\pm$0.236} \\
+  GIN & \makecell{0.787 \\ $\pm$0.014} & \makecell{0.836 \\ $\pm$0.012} & \makecell{0.658 \\ $\pm$0.013} & \makecell{0.563 \\ $\pm$0.067} & \makecell{6.805 \\ $\pm$0.503} & \textbf{\makecell{4.608 \\ $\pm$0.405}} & \makecell{-2.087 \\ $\pm$0.920} \\
+  Pretrained GIN & \makecell{0.727 \\ $\pm$0.016} & \makecell{0.780 \\ $\pm$0.016} & \makecell{0.593 \\ $\pm$0.016} & \makecell{0.461 \\ $\pm$0.027} & \makecell{7.574 \\ $\pm$0.188} & \makecell{5.225 \\ $\pm$0.149} & \makecell{-2.630 \\ $\pm$0.250} \\
+  Pretrained PepLand & \makecell{0.786 \\ $\pm$0.014} & \makecell{0.835 \\ $\pm$0.013} & \makecell{0.655 \\ $\pm$0.013} & \makecell{0.488 \\ $\pm$0.041} & \makecell{7.378 \\ $\pm$0.292} & \makecell{5.001 \\ $\pm$0.278} & \makecell{-3.482 \\ $\pm$0.474} \\
+  PeptideCLM-2-Hybrid & \makecell{0.751 \\ $\pm$0.019} & \makecell{0.791 \\ $\pm$0.019} & \makecell{0.612 \\ $\pm$0.018} & \makecell{0.491 \\ $\pm$0.036} & \makecell{7.355 \\ $\pm$0.256} & \makecell{5.009 \\ $\pm$0.177} & \makecell{-2.650 \\ $\pm$0.344} \\
   ESM3-small & \makecell{0.787 \\ $\pm$0.008} & \makecell{0.826 \\ $\pm$0.007} & \makecell{0.638 \\ $\pm$0.009} & \makecell{0.399 \\ $\pm$0.080} & \makecell{7.981 \\ $\pm$0.539} & \makecell{5.622 \\ $\pm$0.439} & \makecell{-3.996 \\ $\pm$1.071} \\
   ESMC-300M & \makecell{0.770 \\ $\pm$0.017} & \makecell{0.828 \\ $\pm$0.017} & \makecell{0.644 \\ $\pm$0.019} & \makecell{0.406 \\ $\pm$0.034} & \makecell{7.948 \\ $\pm$0.227} & \makecell{5.468 \\ $\pm$0.195} & \makecell{-4.088 \\ $\pm$0.301} \\
   ESMC-600M & \makecell{0.762 \\ $\pm$0.012} & \makecell{0.826 \\ $\pm$0.009} & \makecell{0.642 \\ $\pm$0.010} & \makecell{0.321 \\ $\pm$0.032} & \makecell{8.501 \\ $\pm$0.198} & \makecell{6.023 \\ $\pm$0.198} & \makecell{-4.942 \\ $\pm$0.366} \\
-  Transformer & \makecell{0.742 \\ $\pm$0.033} & \makecell{0.794 \\ $\pm$0.028} & \makecell{0.605 \\ $\pm$0.031} & \makecell{0.513 \\ $\pm$0.053} & \makecell{7.188 \\ $\pm$0.395} & \makecell{5.105 \\ $\pm$0.320} & \textbf{\makecell{-1.617 \\ $\pm$0.901}} \\
-  DeepLC & \textbf{\makecell{0.804 \\ $\pm$0.013}} & \textbf{\makecell{0.849 \\ $\pm$0.008}} & \textbf{\makecell{0.671 \\ $\pm$0.011}} & \makecell{0.579 \\ $\pm$0.033} & \makecell{6.692 \\ $\pm$0.263} & \makecell{4.644 \\ $\pm$0.214} & \makecell{-2.477 \\ $\pm$0.592} \\
-  DeepRT-CapsNet & \makecell{0.767 \\ $\pm$0.022} & \makecell{0.804 \\ $\pm$0.020} & \makecell{0.613 \\ $\pm$0.023} & \makecell{0.521 \\ $\pm$0.038} & \makecell{7.140 \\ $\pm$0.283} & \makecell{5.103 \\ $\pm$0.207} & \makecell{-2.028 \\ $\pm$0.807} \\
-  Morgan FP MLP & \makecell{0.506 \\ $\pm$0.021} & \makecell{0.534 \\ $\pm$0.026} & \makecell{0.377 \\ $\pm$0.019} & \makecell{0.173 \\ $\pm$0.032} & \makecell{9.384 \\ $\pm$0.181} & \makecell{6.866 \\ $\pm$0.155} & \makecell{-1.745 \\ $\pm$0.409} \\
+  Transformer & \makecell{0.746 \\ $\pm$0.038} & \makecell{0.796 \\ $\pm$0.031} & \makecell{0.608 \\ $\pm$0.035} & \makecell{0.514 \\ $\pm$0.055} & \makecell{7.180 \\ $\pm$0.405} & \makecell{5.101 \\ $\pm$0.325} & \textbf{\makecell{-1.760 \\ $\pm$0.934}} \\
+  DeepLC & \textbf{\makecell{0.800 \\ $\pm$0.017}} & \textbf{\makecell{0.846 \\ $\pm$0.016}} & \textbf{\makecell{0.666 \\ $\pm$0.021}} & \textbf{\makecell{0.581 \\ $\pm$0.030}} & \textbf{\makecell{6.677 \\ $\pm$0.243}} & \makecell{4.680 \\ $\pm$0.284} & \makecell{-2.171 \\ $\pm$0.832} \\
+  DeepRT-CapsNet & \makecell{0.765 \\ $\pm$0.023} & \makecell{0.802 \\ $\pm$0.021} & \makecell{0.612 \\ $\pm$0.023} & \makecell{0.507 \\ $\pm$0.067} & \makecell{7.231 \\ $\pm$0.477} & \makecell{5.166 \\ $\pm$0.330} & \makecell{-2.159 \\ $\pm$0.988} \\
+  Morgan FP MLP & \makecell{0.507 \\ $\pm$0.022} & \makecell{0.535 \\ $\pm$0.027} & \makecell{0.377 \\ $\pm$0.019} & \makecell{0.157 \\ $\pm$0.059} & \makecell{9.472 \\ $\pm$0.326} & \makecell{6.944 \\ $\pm$0.247} & \makecell{-1.982 \\ $\pm$0.999} \\
     \bottomrule
   \end{tabular}
 \end{table}
