@@ -414,18 +414,22 @@ def run_one_seed(
     train_metrics = regression_metrics(y_train, y_pred_train)
     print(f"  [train] RMSE={train_metrics['rmse']:.4f}  Pearson={train_metrics['pearson']:+.4f}")
 
-    stereo_metrics = stereo_ordering_accuracy(model, stereo)
-    print(f"  Ordering accuracy: {stereo_metrics['ordering_acc']:.4f}  "
-          f"({stereo_metrics['n_correct']}/{stereo_metrics['n_pairs']})")
+    if stereo is not None:
+        stereo_metrics = stereo_ordering_accuracy(model, stereo)
+        print(f"  Ordering accuracy: {stereo_metrics['ordering_acc']:.4f}  "
+              f"({stereo_metrics['n_correct']}/{stereo_metrics['n_pairs']})")
 
-    stereo_trainval_metrics = stereo_ordering_accuracy(model, stereo_trainval)
-    print(f"  Trainval ordering accuracy: {stereo_trainval_metrics['ordering_acc']:.4f}  "
-          f"({stereo_trainval_metrics['n_correct']}/{stereo_trainval_metrics['n_pairs']})")
+        stereo_trainval_metrics = stereo_ordering_accuracy(model, stereo_trainval)
+        print(f"  Trainval ordering accuracy: {stereo_trainval_metrics['ordering_acc']:.4f}  "
+              f"({stereo_trainval_metrics['n_correct']}/{stereo_trainval_metrics['n_pairs']})")
 
-    tag_metrics = eval_pair_metrics(model, terminal_tag_pairs, "Sequence_untagged", "Sequence_tagged")
-    print(f"  Tag-pair delta Pearson: {tag_metrics['delta_pearson']:+.4f}")
-    sub_metrics = eval_pair_metrics(model, sub_pairs, "Sequence_1", "Sequence_2")
-    print(f"  Substitution-pair delta Pearson: {sub_metrics['delta_pearson']:+.4f}")
+        tag_metrics = eval_pair_metrics(model, terminal_tag_pairs, "Sequence_untagged", "Sequence_tagged")
+        print(f"  Tag-pair delta Pearson: {tag_metrics['delta_pearson']:+.4f}")
+        sub_metrics = eval_pair_metrics(model, sub_pairs, "Sequence_1", "Sequence_2")
+        print(f"  Substitution-pair delta Pearson: {sub_metrics['delta_pearson']:+.4f}")
+    else:
+        print("  (pair evals skipped — natural-only dataset has no diastereomer/tag/mutation pairs)")
+        stereo_metrics = stereo_trainval_metrics = tag_metrics = sub_metrics = None
 
     return test_metrics, train_metrics, stereo_metrics, stereo_trainval_metrics, tag_metrics, sub_metrics, history
 
@@ -437,21 +441,30 @@ def main() -> None:
                         help="Training seed (default: 0)")
     parser.add_argument("--epochs", type=int, default=MAX_EPOCHS,
                         help=f"Max training epochs (default: {MAX_EPOCHS})")
+    parser.add_argument("--dataset", choices=["stereopep", "natural"], default="stereopep",
+                        help="'stereopep' (default): full dataset, includes diastereomer/tag/mutation "
+                             "pair evals. 'natural': canonical-amino-acid-only subset; pair evals are "
+                             "skipped since they require non-canonical/D-form peptides.")
     args = parser.parse_args()
     seed = args.seed
+    natural = args.dataset == "natural"
 
     MAX_EPOCHS  = args.epochs
     PATIENCE    = max(1, int(0.10 * MAX_EPOCHS))
 
-    print(f"Device: {DEVICE}  |  seed={seed}  |  max_epochs={MAX_EPOCHS}  |  patience={PATIENCE}")
+    print(f"Device: {DEVICE}  |  seed={seed}  |  dataset={args.dataset}  "
+          f"|  max_epochs={MAX_EPOCHS}  |  patience={PATIENCE}")
     t0 = time.time()
 
-    print("[data] Loading stereopep dataset …")
-    ds        = hf_load_dataset(HF_REPO, "StereoPep")
-    stereo          = hf_load_dataset(HF_REPO, "diastereomer_pairs")["diastereomer_pairs"]
-    stereo_trainval = hf_load_dataset(HF_REPO, "diastereomer_pairs")["diastereomer_pairs_trainval"]
-    terminal_tag_pairs       = hf_load_dataset(HF_REPO, "terminal_tag_pairs")["terminal_tag_pairs"]
-    sub_pairs       = hf_load_dataset(HF_REPO, "point_mutant_pairs")["point_mutant_pairs"]
+    print(f"[data] Loading stereopep dataset (config={'natural' if natural else 'StereoPep'}) …")
+    ds = hf_load_dataset(HF_REPO, "natural" if natural else "StereoPep")
+    if natural:
+        stereo = stereo_trainval = terminal_tag_pairs = sub_pairs = None
+    else:
+        stereo          = hf_load_dataset(HF_REPO, "diastereomer_pairs")["diastereomer_pairs"]
+        stereo_trainval = hf_load_dataset(HF_REPO, "diastereomer_pairs")["diastereomer_pairs_trainval"]
+        terminal_tag_pairs       = hf_load_dataset(HF_REPO, "terminal_tag_pairs")["terminal_tag_pairs"]
+        sub_pairs       = hf_load_dataset(HF_REPO, "point_mutant_pairs")["point_mutant_pairs"]
 
     print("[tokenize] Building token tensors …")
     train_tok, train_mask = tokenize_batch(ds["train"]["Peptide"])
@@ -474,7 +487,8 @@ def main() -> None:
     n_params = sum(p.numel() for p in PeptideTransformer().parameters() if p.requires_grad)
     print(f"[model] PeptideTransformer | {n_params:,} params | device={DEVICE}")
 
-    weights_path = WEIGHTS_DIR / f"results_transformer_scratch_seed{seed}.pt"
+    stem = "results_transformer_scratch_natural" if natural else "results_transformer_scratch"
+    weights_path = WEIGHTS_DIR / f"{stem}_seed{seed}.pt"
     print(f"\n── Seed {seed} ──")
     test_metrics, train_metrics, stereo_metrics, stereo_trainval_metrics, tag_metrics, sub_metrics, history = run_one_seed(
         seed, train_loader, val_loader,
@@ -486,6 +500,7 @@ def main() -> None:
     print(f"\nTotal time: {time.time() - t0:.1f}s")
 
     config = {
+        "dataset": args.dataset,
         "d_model": D_MODEL, "n_heads": N_HEADS, "n_layers": N_LAYERS,
         "ffn_mult": FFN_MULT, "dropout": DROPOUT, "max_seq_len": MAX_SEQ_LEN,
         "vocab_size": VOCAB_SIZE, "lr": LR, "weight_decay": WEIGHT_DECAY,
@@ -496,7 +511,7 @@ def main() -> None:
         "best_val_loss": min(h["val_loss"] for h in history),
     }
     save_results(seed, test_metrics, train_metrics, stereo_metrics, stereo_trainval_metrics,
-                 tag_metrics, sub_metrics, training, config, RESULTS_DIR, "results_transformer_scratch")
+                 tag_metrics, sub_metrics, training, config, RESULTS_DIR, stem)
 
 
 if __name__ == "__main__":

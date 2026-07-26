@@ -30,7 +30,17 @@ Pipeline
 3. Evaluate on the test split with regression metrics (pre-computed after train).
 4. Evaluate stereochemistry ordering accuracy on the diastereomer_pairs split.
 
-Results are written to benchmarks/output/results_{model_key}_embedding_seed{N}.json.
+--dataset natural: the StereoPep 'natural' config contains only canonical
+amino acids — no 'f' (D-Phe) at all — so the entire learnable-token
+machinery above is unnecessary. In this mode the backbone is loaded fully
+frozen (no vocabulary patch), embeddings are precomputed ONCE per model
+(not on-the-fly every batch, since there's no token whose gradient needs
+live backbone output), and only the MLP head is trained — the same fast
+pattern as pepland.py / peptideclm2_embedding.py. Pair evals (diastereomer/
+tag/mutation) are skipped since 'natural' has no such splits.
+
+Results are written to benchmarks/output/results_{model_key}_embedding_seed{N}.json
+(or ..._embedding_natural_seed{N}.json for --dataset natural).
 """
 
 from __future__ import annotations
@@ -195,6 +205,26 @@ def load_model(model_key: str):
     return model, tok
 
 
+def load_model_natural(model_key: str):
+    """
+    Load an ESM backbone, fully frozen, with NO vocabulary patch — for
+    --dataset natural, where 'f' (D-Phe) never appears so there's nothing
+    to patch. Returns (model, tokenizer).
+    """
+    cfg    = MODELS[model_key]
+    mod    = importlib.import_module("esm.pretrained")
+    loader = getattr(mod, cfg["import_fn"])
+
+    print(f"[ESM] Loading {cfg['display_name']} on {DEVICE} [natural mode: no token patch, fully frozen] …")
+    model = loader(DEVICE)
+    model.eval()
+    for p in model.parameters():
+        p.requires_grad_(False)
+
+    tok = _get_tokenizer(model, cfg["family"])
+    return model, tok
+
+
 # ── embedding helpers ─────────────────────────────────────────────────────────
 
 def embed_batch(model, tok, sequences: list[str]) -> torch.Tensor:
@@ -288,6 +318,115 @@ def evaluate(model: MLP, embeddings: np.ndarray, y: np.ndarray) -> dict:
     tau, _  = stats.kendalltau(targets, preds)
     return dict(mse=mse, rmse=rmse, mae=mae, mean_error=float(np.mean(preds - targets)),
                 r2=float(r2_score(targets, preds)), pearson=float(r), spearman=float(rho), kendall=float(tau))
+
+
+def train_mlp_only(mlp: MLP, X_train: np.ndarray, y_train: np.ndarray,
+                    X_val: np.ndarray, y_val: np.ndarray) -> list[dict]:
+    """Train the MLP head on precomputed (frozen) embeddings — no backbone
+    forward pass per step, since embeddings don't change. Used for
+    --dataset natural, matching morgan_fp_mlp.py / pepland.py's pattern."""
+    train_loader = DataLoader(
+        TensorDataset(torch.tensor(X_train, dtype=torch.float32), torch.tensor(y_train, dtype=torch.float32)),
+        batch_size=256, shuffle=True,
+    )
+    val_loader = DataLoader(
+        TensorDataset(torch.tensor(X_val, dtype=torch.float32), torch.tensor(y_val, dtype=torch.float32)),
+        batch_size=256, shuffle=False,
+    )
+    optimizer = torch.optim.Adam(mlp.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=LR_PATIENCE, factor=0.5, min_lr=1e-6)
+    criterion = nn.MSELoss()
+
+    history = []
+    best_val_loss  = float("inf")
+    best_state     = None
+    no_improve     = 0
+
+    epoch_bar = tqdm(range(1, MAX_EPOCHS + 1), desc="  Training", unit="epoch")
+    for epoch in epoch_bar:
+        mlp.train()
+        train_loss = 0.0
+        for X_b, y_b in train_loader:
+            X_b, y_b = X_b.to(DEVICE), y_b.to(DEVICE)
+            optimizer.zero_grad()
+            loss = criterion(mlp(X_b), y_b)
+            loss.backward()
+            optimizer.step()
+            train_loss += loss.item() * len(y_b)
+        train_loss /= len(train_loader.dataset)
+
+        mlp.eval()
+        val_loss = 0.0
+        with torch.no_grad():
+            for X_b, y_b in val_loader:
+                X_b, y_b = X_b.to(DEVICE), y_b.to(DEVICE)
+                val_loss += criterion(mlp(X_b), y_b).item() * len(y_b)
+        val_loss /= len(val_loader.dataset)
+
+        scheduler.step(val_loss)
+        history.append({"epoch": epoch, "train_loss": train_loss, "val_loss": val_loss})
+
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            best_state    = {k: v.cpu().clone() for k, v in mlp.state_dict().items()}
+            no_improve    = 0
+        else:
+            no_improve += 1
+
+        epoch_bar.set_postfix(train=f"{train_loss:.4f}", val=f"{val_loss:.4f}",
+                              best=f"{best_val_loss:.4f}", patience=no_improve)
+
+        if no_improve >= PATIENCE:
+            print(f"\n  Early stop at epoch {epoch}")
+            break
+
+    mlp.load_state_dict({k: v.to(DEVICE) for k, v in best_state.items()})
+    mlp.eval()
+    return history
+
+
+def run_one_seed_natural(
+    seed: int,
+    X_train: np.ndarray, X_val: np.ndarray, X_test: np.ndarray,
+    y_train: np.ndarray, y_val: np.ndarray, y_test: np.ndarray,
+    weights_path: Path | None = None,
+) -> tuple[dict, dict, dict]:
+    """--dataset natural path: frozen precomputed embeddings, MLP head only,
+    no pair evals (no diastereomer/tag/mutation splits exist for natural-only data)."""
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+
+    emb_dim = X_train.shape[1]
+    mlp = MLP(emb_dim, HIDDEN_DIM, N_LAYERS, DROPOUT).to(DEVICE)
+
+    if weights_path is not None and weights_path.exists():
+        print(f"  [weights] Loading from {weights_path} — skipping training")
+        ckpt = torch.load(weights_path, map_location=DEVICE, weights_only=False)
+        mlp.load_state_dict(ckpt["mlp"])
+        mlp.eval()
+        epochs_run    = ckpt["epochs_run"]
+        best_val_loss = ckpt["best_val_loss"]
+    else:
+        history = train_mlp_only(mlp, X_train, y_train, X_val, y_val)
+        epochs_run    = history[-1]["epoch"]
+        best_val_loss = min(h["val_loss"] for h in history)
+        if weights_path is not None:
+            weights_path.parent.mkdir(parents=True, exist_ok=True)
+            torch.save({"mlp": mlp.state_dict(), "epochs_run": epochs_run,
+                        "best_val_loss": best_val_loss}, weights_path)
+            print(f"  [weights] Saved to {weights_path}")
+
+    test_metrics = evaluate(mlp, X_test, y_test)
+    print(f"  RMSE={test_metrics['rmse']:.4f}  Pearson={test_metrics['pearson']:+.4f}"
+          f"  Spearman={test_metrics['spearman']:+.4f}")
+
+    train_metrics = evaluate(mlp, X_train, y_train)
+    print(f"  [train] RMSE={train_metrics['rmse']:.4f}  Pearson={train_metrics['pearson']:+.4f}")
+
+    print("  (pair evals skipped — natural-only dataset has no diastereomer/tag/mutation pairs)")
+
+    training_summary = {"epochs_run": epochs_run, "best_val_loss": best_val_loss}
+    return test_metrics, train_metrics, training_summary
 
 
 def stereo_ordering_accuracy(mlp: MLP, model, tok, stereo_ds) -> dict:
@@ -606,11 +745,17 @@ def main() -> None:
             f"(default: esm3_sm)"
         ),
     )
+    parser.add_argument("--dataset", choices=["stereopep", "natural"], default="stereopep",
+                        help="'stereopep' (default): full dataset, patches a learnable 'f' (D-Phe) "
+                             "token, trains on-the-fly, includes pair evals. 'natural': canonical-"
+                             "amino-acid-only subset, no token patch needed (no 'f' present), "
+                             "embeddings precomputed once + frozen (much faster), no pair evals.")
     args = parser.parse_args()
 
     seed        = args.seed
     MAX_EPOCHS  = args.epochs
     PATIENCE    = max(1, int(0.10 * MAX_EPOCHS))
+    natural     = args.dataset == "natural"
 
     # Resolve requested model keys
     if args.model.strip().lower() == "all":
@@ -624,16 +769,20 @@ def main() -> None:
                 f"Choose from: {', '.join(ALL_MODELS)}, all"
             )
 
-    print(f"Device: {DEVICE}  |  seed={seed}  |  max_epochs={MAX_EPOCHS}  |  patience={PATIENCE}")
+    print(f"Device: {DEVICE}  |  seed={seed}  |  dataset={args.dataset}  "
+          f"|  max_epochs={MAX_EPOCHS}  |  patience={PATIENCE}")
     print(f"Models : {model_keys}")
 
     # Load dataset once; share across all model runs
-    print("\n[data] Loading stereopep dataset …")
-    ds        = hf_load_dataset(HF_REPO, "StereoPep")
-    stereo          = hf_load_dataset(HF_REPO, "diastereomer_pairs")["diastereomer_pairs"]
-    stereo_trainval = hf_load_dataset(HF_REPO, "diastereomer_pairs")["diastereomer_pairs_trainval"]
-    terminal_tag_pairs       = hf_load_dataset(HF_REPO, "terminal_tag_pairs")["terminal_tag_pairs"]
-    sub_pairs       = hf_load_dataset(HF_REPO, "point_mutant_pairs")["point_mutant_pairs"]
+    print(f"\n[data] Loading stereopep dataset (config={'natural' if natural else 'StereoPep'}) …")
+    ds = hf_load_dataset(HF_REPO, "natural" if natural else "StereoPep")
+    if natural:
+        stereo = stereo_trainval = terminal_tag_pairs = sub_pairs = None
+    else:
+        stereo          = hf_load_dataset(HF_REPO, "diastereomer_pairs")["diastereomer_pairs"]
+        stereo_trainval = hf_load_dataset(HF_REPO, "diastereomer_pairs")["diastereomer_pairs_trainval"]
+        terminal_tag_pairs       = hf_load_dataset(HF_REPO, "terminal_tag_pairs")["terminal_tag_pairs"]
+        sub_pairs       = hf_load_dataset(HF_REPO, "point_mutant_pairs")["point_mutant_pairs"]
     ds_test_peptides = ds["test"]["Peptide"]
 
     y_train = np.array(ds["train"]["B"], dtype=np.float32)
@@ -647,38 +796,57 @@ def main() -> None:
         print(f"{'='*60}")
         t0 = time.time()
 
-        model, tok = load_model(model_key)
-
-        model_learnable = [p for p in model.parameters() if p.requires_grad]
-        print(f"[ESM] Learnable params: {sum(p.numel() for p in model_learnable)}  "
-              f"(just the 'f' embedding vector)")
-
-        f_emb_init = model_learnable[0].detach().cpu().clone()
-        emb_dim    = f_emb_init.shape[0]
-
-        train_loader = DataLoader(
-            SequenceDataset(ds["train"]["Peptide"], y_train),
-            batch_size=TRAIN_BATCH, shuffle=True, collate_fn=seq_collate,
-        )
-        val_loader = DataLoader(
-            SequenceDataset(ds["val"]["Peptide"], y_val),
-            batch_size=TRAIN_BATCH, shuffle=False, collate_fn=seq_collate,
-        )
-
+        stem = f"results_{model_key}_embedding_natural" if natural else f"results_{model_key}_embedding"
+        weights_path = WEIGHTS_DIR / f"{stem}_seed{seed}.pt"
         print(f"\n── Seed {seed} ──")
-        weights_path = WEIGHTS_DIR / f"results_{model_key}_embedding_seed{seed}.pt"
-        test_metrics, train_metrics, stereo_metrics, stereo_trainval_metrics, tag_metrics, sub_metrics, training_summary = run_one_seed(
-            seed, model, tok, f_emb_init, model_learnable,
-            train_loader, val_loader,
-            list(ds["train"]["Peptide"]), y_train,
-            y_test, stereo, stereo_trainval, terminal_tag_pairs, sub_pairs,
-            weights_path=weights_path,
-        )
+
+        if natural:
+            model, tok = load_model_natural(model_key)
+            print("  [embed] Precomputing embeddings (frozen backbone, once per run) …")
+            X_train = embed_sequences(model, tok, ds["train"]["Peptide"], desc="Train")
+            X_val   = embed_sequences(model, tok, ds["val"]["Peptide"],   desc="Val  ")
+            X_test  = embed_sequences(model, tok, ds["test"]["Peptide"],  desc="Test ")
+            emb_dim = X_train.shape[1]
+
+            test_metrics, train_metrics, training_summary = run_one_seed_natural(
+                seed, X_train, X_val, X_test, y_train, y_val, y_test,
+                weights_path=weights_path,
+            )
+            stereo_metrics = stereo_trainval_metrics = tag_metrics = sub_metrics = None
+            del model, tok
+        else:
+            model, tok = load_model(model_key)
+
+            model_learnable = [p for p in model.parameters() if p.requires_grad]
+            print(f"[ESM] Learnable params: {sum(p.numel() for p in model_learnable)}  "
+                  f"(just the 'f' embedding vector)")
+
+            f_emb_init = model_learnable[0].detach().cpu().clone()
+            emb_dim    = f_emb_init.shape[0]
+
+            train_loader = DataLoader(
+                SequenceDataset(ds["train"]["Peptide"], y_train),
+                batch_size=TRAIN_BATCH, shuffle=True, collate_fn=seq_collate,
+            )
+            val_loader = DataLoader(
+                SequenceDataset(ds["val"]["Peptide"], y_val),
+                batch_size=TRAIN_BATCH, shuffle=False, collate_fn=seq_collate,
+            )
+
+            test_metrics, train_metrics, stereo_metrics, stereo_trainval_metrics, tag_metrics, sub_metrics, training_summary = run_one_seed(
+                seed, model, tok, f_emb_init, model_learnable,
+                train_loader, val_loader,
+                list(ds["train"]["Peptide"]), y_train,
+                y_test, stereo, stereo_trainval, terminal_tag_pairs, sub_pairs,
+                weights_path=weights_path,
+            )
+            del model, tok, model_learnable, f_emb_init, train_loader, val_loader
 
         elapsed = time.time() - t0
         print(f"\nTotal time for {model_key}: {elapsed:.1f}s")
 
         config = {
+            "dataset":      args.dataset,
             "esm_model":    cfg["hf_name"],
             "model_family": cfg["family"],
             "emb_dim":      emb_dim,
@@ -693,12 +861,10 @@ def main() -> None:
             "lr_patience":  LR_PATIENCE,
             "device":       DEVICE,
         }
-        stem = f"results_{model_key}_embedding"
         save_results(seed, test_metrics, train_metrics, stereo_metrics, stereo_trainval_metrics,
                      tag_metrics, sub_metrics, training_summary, config, RESULTS_DIR, stem)
 
         # Free GPU memory before loading the next model
-        del model, tok, model_learnable, f_emb_init, train_loader, val_loader
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 

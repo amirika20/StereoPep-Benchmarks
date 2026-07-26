@@ -18,16 +18,22 @@ model's own documented usage, but worth knowing.
 
 The backbone is frozen (feature-extraction only, no fine-tuning) — SMILES
 input already encodes chirality/non-canonical residues natively, so unlike
-esm3_embedding.py there's no missing-token vocabulary patch needed, and
-embeddings can be precomputed once per model per run (like
-morgan_fp_mlp.py / pretrained_gin.py) rather than recomputed on-the-fly
-every batch. The model's own forward pass already returns a padding-aware
-mean-pooled embedding (`outputs.mean_pool`), so no custom pooling logic is
-needed either.
+esm3_embedding.py there's no missing-token vocabulary patch needed.
+
+Embeddings are precomputed ONCE per model variant (not per seed) by
+peptideclm2_precompute_embeddings.py, which caches {SMILES: embedding} to
+benchmarks/pretrained_weights/peptideclm2_{model_key}_embeddings.pt. This
+script just loads that cache (no transformers model loading, no GPU
+forward pass through the backbone at all) and trains/evaluates an MLP
+head on top — exactly like morgan_fp_mlp.py / pepland.py. Run the
+precompute script first:
+
+    python benchmarks/peptideclm2_precompute_embeddings.py --model hybrid_base
 
 Pass --model <key>       to run a single variant (default: hybrid_base)
 Pass --model <k1>,<k2>   to run a subset
 Pass --model all          to run every one of the 9 variants sequentially
+(each needs its own precomputed cache file first)
 
 Results are written to benchmarks/output/results_{model_key}_seed{N}.json.
 """
@@ -47,11 +53,10 @@ from datasets import load_dataset as hf_load_dataset
 from scipy import stats
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, roc_auc_score
 from torch.utils.data import DataLoader, TensorDataset
-from tqdm import tqdm
-from transformers import AutoModel, AutoTokenizer
 
 # ── config ────────────────────────────────────────────────────────────────────
 HF_REPO = "stereopep-ano/StereoPep"
+EMBEDDINGS_DIR = Path(__file__).parent / "pretrained_weights"
 
 # Model registry — 3 pretraining objectives x 3 sizes.
 MODELS: dict[str, dict] = {
@@ -80,36 +85,45 @@ RESULTS_DIR  = Path(__file__).parent / "output"
 WEIGHTS_DIR  = Path(__file__).parent / "weights"
 
 
-# ── model loading ─────────────────────────────────────────────────────────────
+# ── embedding cache ───────────────────────────────────────────────────────────
 
-def load_model(model_key: str):
-    """Load a frozen PeptideCLM-2 backbone + tokenizer. Returns (model, tokenizer, embed_dim)."""
-    cfg = MODELS[model_key]
-    print(f"[PeptideCLM-2] Loading {cfg['display_name']} ({cfg['hf_name']}) on {DEVICE} "
-          f"[trust_remote_code=True: executes model code hosted in the HF repo] …")
-
-    tok = AutoTokenizer.from_pretrained(cfg["hf_name"], trust_remote_code=True)
-    model = AutoModel.from_pretrained(cfg["hf_name"], trust_remote_code=True, use_safetensors=True)
-    model = model.to(DEVICE)
-    model.eval()
-    for p in model.parameters():
-        p.requires_grad_(False)
-
-    embed_dim = model.config.embed_dim
-    return model, tok, embed_dim
+_CACHES: dict[str, dict] = {}   # model_key -> {"embed_dim": int, "embeddings": {smiles: tensor}}
 
 
-@torch.no_grad()
-def embed_sequences(model, tok, smiles_list: list[str], desc: str = "Embedding") -> np.ndarray:
-    """Batched frozen forward pass -> (N, embed_dim) mean-pooled embeddings."""
-    all_embs = []
-    for i in tqdm(range(0, len(smiles_list), ENCODE_BATCH), desc=desc):
-        batch = smiles_list[i : i + ENCODE_BATCH]
-        inputs = tok(batch, return_tensors="pt", padding=True, truncation=True)
-        inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
-        outputs = model(**inputs)
-        all_embs.append(outputs.mean_pool.cpu().float().numpy())
-    return np.concatenate(all_embs, axis=0)
+def load_embedding_cache(model_key: str) -> dict:
+    if model_key in _CACHES:
+        return _CACHES[model_key]
+    path = EMBEDDINGS_DIR / f"peptideclm2_{model_key}_embeddings.pt"
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Precomputed embeddings for '{model_key}' not found at {path}.\n"
+            f"Run this first:\n\n"
+            f"    python benchmarks/peptideclm2_precompute_embeddings.py --model {model_key}\n"
+        )
+    ckpt = torch.load(path, map_location="cpu", weights_only=False)
+    _CACHES[model_key] = ckpt
+    print(f"[cache] Loaded {len(ckpt['embeddings'])} embeddings for {model_key} "
+          f"(dim={ckpt['embed_dim']}) from {path}")
+    return ckpt
+
+
+def embed_sequences(model_key: str, smiles_list: list[str]) -> tuple[np.ndarray, list[int]]:
+    """Look up precomputed embeddings. Returns (matrix, bad_indices) — bad_indices
+    are rows missing from the cache (skipped during precompute, e.g. bad SMILES)."""
+    ckpt = load_embedding_cache(model_key)
+    cache, embed_dim = ckpt["embeddings"], ckpt["embed_dim"]
+    embs, bad = [], []
+    for i, smi in enumerate(smiles_list):
+        emb = cache.get(smi)
+        if emb is None:
+            bad.append(i)
+            embs.append(np.zeros(embed_dim, dtype=np.float32))
+        else:
+            embs.append(emb.numpy().astype(np.float32))
+    if bad:
+        print(f"[WARNING] {len(bad)}/{len(smiles_list)} SMILES missing from the "
+              f"PeptideCLM-2 embedding cache for {model_key}.")
+    return np.stack(embs), bad
 
 
 # ── model (MLP head) ─────────────────────────────────────────────────────────
@@ -349,18 +363,22 @@ def run_one_seed(
     train_metrics = regression_metrics(y_train, y_pred_train)
     print(f"  [train] RMSE={train_metrics['rmse']:.4f}  Pearson={train_metrics['pearson']:+.4f}")
 
-    stereo_metrics = stereo_ordering_accuracy(mlp, emb_stereo_f, emb_stereo_F, stereo)
-    print(f"  Ordering accuracy: {stereo_metrics['ordering_acc']:.4f}"
-          f"  ({stereo_metrics['n_correct']}/{stereo_metrics['n_pairs']})")
+    if stereo is not None:
+        stereo_metrics = stereo_ordering_accuracy(mlp, emb_stereo_f, emb_stereo_F, stereo)
+        print(f"  Ordering accuracy: {stereo_metrics['ordering_acc']:.4f}"
+              f"  ({stereo_metrics['n_correct']}/{stereo_metrics['n_pairs']})")
 
-    stereo_trainval_metrics = stereo_ordering_accuracy(mlp, emb_strv_f, emb_strv_F, stereo_trainval)
-    print(f"  Trainval ordering accuracy: {stereo_trainval_metrics['ordering_acc']:.4f}"
-          f"  ({stereo_trainval_metrics['n_correct']}/{stereo_trainval_metrics['n_pairs']})")
+        stereo_trainval_metrics = stereo_ordering_accuracy(mlp, emb_strv_f, emb_strv_F, stereo_trainval)
+        print(f"  Trainval ordering accuracy: {stereo_trainval_metrics['ordering_acc']:.4f}"
+              f"  ({stereo_trainval_metrics['n_correct']}/{stereo_trainval_metrics['n_pairs']})")
 
-    tag_metrics = eval_pair_metrics(mlp, emb_tag_a, emb_tag_b, tag_pairs)
-    print(f"  Tag-pair delta Pearson: {tag_metrics['delta_pearson']:+.4f}")
-    sub_metrics = eval_pair_metrics(mlp, emb_sub_a, emb_sub_b, sub_pairs)
-    print(f"  Substitution-pair delta Pearson: {sub_metrics['delta_pearson']:+.4f}")
+        tag_metrics = eval_pair_metrics(mlp, emb_tag_a, emb_tag_b, tag_pairs)
+        print(f"  Tag-pair delta Pearson: {tag_metrics['delta_pearson']:+.4f}")
+        sub_metrics = eval_pair_metrics(mlp, emb_sub_a, emb_sub_b, sub_pairs)
+        print(f"  Substitution-pair delta Pearson: {sub_metrics['delta_pearson']:+.4f}")
+    else:
+        print("  (pair evals skipped — natural-only dataset has no diastereomer/tag/mutation pairs)")
+        stereo_metrics = stereo_trainval_metrics = tag_metrics = sub_metrics = None
 
     return test_metrics, train_metrics, stereo_metrics, stereo_trainval_metrics, tag_metrics, sub_metrics, history
 
@@ -384,11 +402,17 @@ def main() -> None:
             "(default: hybrid_base)"
         ),
     )
+    parser.add_argument("--dataset", choices=["stereopep", "natural"], default="stereopep",
+                        help="'stereopep' (default): full dataset, includes diastereomer/tag/mutation "
+                             "pair evals. 'natural': canonical-amino-acid-only subset; pair evals are "
+                             "skipped since they require non-canonical/D-form peptides. All natural "
+                             "SMILES are already covered by the existing embedding caches.")
     args = parser.parse_args()
 
     seed       = args.seed
     MAX_EPOCHS = args.epochs
     PATIENCE   = max(1, int(0.10 * MAX_EPOCHS))
+    natural    = args.dataset == "natural"
 
     if args.model.strip().lower() == "all":
         model_keys = ALL_MODELS
@@ -398,15 +422,19 @@ def main() -> None:
         if unknown:
             parser.error(f"Unknown model(s): {unknown}\nChoose from: {', '.join(ALL_MODELS)}, all")
 
-    print(f"Device: {DEVICE}  |  seed={seed}  |  max_epochs={MAX_EPOCHS}  |  patience={PATIENCE}")
+    print(f"Device: {DEVICE}  |  seed={seed}  |  dataset={args.dataset}  "
+          f"|  max_epochs={MAX_EPOCHS}  |  patience={PATIENCE}")
     print(f"Models : {model_keys}")
 
-    print("\n[data] Loading stereopep dataset …")
-    ds              = hf_load_dataset(HF_REPO, "StereoPep")
-    stereo          = hf_load_dataset(HF_REPO, "diastereomer_pairs")["diastereomer_pairs"]
-    stereo_trainval = hf_load_dataset(HF_REPO, "diastereomer_pairs")["diastereomer_pairs_trainval"]
-    tag_pairs       = hf_load_dataset(HF_REPO, "terminal_tag_pairs")["terminal_tag_pairs"]
-    sub_pairs       = hf_load_dataset(HF_REPO, "point_mutant_pairs")["point_mutant_pairs"]
+    print(f"\n[data] Loading stereopep dataset (config={'natural' if natural else 'StereoPep'}) …")
+    ds = hf_load_dataset(HF_REPO, "natural" if natural else "StereoPep")
+    if natural:
+        stereo = stereo_trainval = tag_pairs = sub_pairs = None
+    else:
+        stereo          = hf_load_dataset(HF_REPO, "diastereomer_pairs")["diastereomer_pairs"]
+        stereo_trainval = hf_load_dataset(HF_REPO, "diastereomer_pairs")["diastereomer_pairs_trainval"]
+        tag_pairs       = hf_load_dataset(HF_REPO, "terminal_tag_pairs")["terminal_tag_pairs"]
+        sub_pairs       = hf_load_dataset(HF_REPO, "point_mutant_pairs")["point_mutant_pairs"]
 
     y_train = np.array(ds["train"]["B"], dtype=np.float32)
     y_val   = np.array(ds["val"]["B"],   dtype=np.float32)
@@ -419,25 +447,28 @@ def main() -> None:
         print(f"{'='*60}")
         t0 = time.time()
 
-        model, tok, embed_dim = load_model(model_key)
-        n_params = sum(p.numel() for p in model.parameters())
-        print(f"  Backbone parameters: {n_params:,} (frozen)  |  embed_dim={embed_dim}")
+        cache = load_embedding_cache(model_key)
+        embed_dim = cache["embed_dim"]
 
-        print("  [embed] Precomputing embeddings (frozen backbone, once per run) …")
-        X_train = embed_sequences(model, tok, ds["train"]["SMILES"], desc="Train")
-        X_val   = embed_sequences(model, tok, ds["val"]["SMILES"],   desc="Val  ")
-        X_test  = embed_sequences(model, tok, ds["test"]["SMILES"],  desc="Test ")
+        X_train, _ = embed_sequences(model_key, ds["train"]["SMILES"])
+        X_val,   _ = embed_sequences(model_key, ds["val"]["SMILES"])
+        X_test,  _ = embed_sequences(model_key, ds["test"]["SMILES"])
 
-        emb_stereo_f = embed_sequences(model, tok, stereo["SMILES_f"], desc="Stereo D-form")
-        emb_stereo_F = embed_sequences(model, tok, stereo["SMILES_F"], desc="Stereo L-form")
-        emb_strv_f   = embed_sequences(model, tok, stereo_trainval["SMILES_f"], desc="Stereo(tv) D-form")
-        emb_strv_F   = embed_sequences(model, tok, stereo_trainval["SMILES_F"], desc="Stereo(tv) L-form")
-        emb_tag_a    = embed_sequences(model, tok, tag_pairs["SMILES_untagged"], desc="Tag untagged")
-        emb_tag_b    = embed_sequences(model, tok, tag_pairs["SMILES_tagged"],   desc="Tag tagged")
-        emb_sub_a    = embed_sequences(model, tok, sub_pairs["SMILES_1"], desc="Sub 1")
-        emb_sub_b    = embed_sequences(model, tok, sub_pairs["SMILES_2"], desc="Sub 2")
+        if not natural:
+            emb_stereo_f, _ = embed_sequences(model_key, stereo["SMILES_f"])
+            emb_stereo_F, _ = embed_sequences(model_key, stereo["SMILES_F"])
+            emb_strv_f,   _ = embed_sequences(model_key, stereo_trainval["SMILES_f"])
+            emb_strv_F,   _ = embed_sequences(model_key, stereo_trainval["SMILES_F"])
+            emb_tag_a,    _ = embed_sequences(model_key, tag_pairs["SMILES_untagged"])
+            emb_tag_b,    _ = embed_sequences(model_key, tag_pairs["SMILES_tagged"])
+            emb_sub_a,    _ = embed_sequences(model_key, sub_pairs["SMILES_1"])
+            emb_sub_b,    _ = embed_sequences(model_key, sub_pairs["SMILES_2"])
+        else:
+            emb_stereo_f = emb_stereo_F = emb_strv_f = emb_strv_F = None
+            emb_tag_a = emb_tag_b = emb_sub_a = emb_sub_b = None
 
-        weights_path = WEIGHTS_DIR / f"results_{model_key}_seed{seed}.pt"
+        stem = f"results_{model_key}_natural" if natural else f"results_{model_key}"
+        weights_path = WEIGHTS_DIR / f"{stem}_seed{seed}.pt"
         print(f"\n── Seed {seed} ──")
         test_metrics, train_metrics, stereo_metrics, stereo_trainval_metrics, tag_metrics, sub_metrics, history = run_one_seed(
             seed, embed_dim, X_train, X_val, X_test, y_train, y_val, y_test,
@@ -452,6 +483,7 @@ def main() -> None:
         print(f"\nTotal time for {model_key}: {elapsed:.1f}s")
 
         config = {
+            "dataset": args.dataset,
             "peptideclm2_model": cfg["hf_name"],
             "embed_dim": embed_dim,
             "hidden_dim": HIDDEN_DIM, "n_layers": N_LAYERS, "dropout": DROPOUT,
@@ -459,13 +491,8 @@ def main() -> None:
             "max_epochs": MAX_EPOCHS, "patience": PATIENCE, "lr_patience": LR_PATIENCE, "device": DEVICE,
         }
         training = {"epochs_run": history[-1]["epoch"], "best_val_loss": min(h["val_loss"] for h in history)}
-        stem = f"results_{model_key}"
         save_results(seed, test_metrics, train_metrics, stereo_metrics, stereo_trainval_metrics,
                      tag_metrics, sub_metrics, training, config, RESULTS_DIR, stem)
-
-        del model, tok
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
 
 
 if __name__ == "__main__":
