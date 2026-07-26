@@ -8,3 +8,9 @@ test_benchmarks.py
 .pytest_cache
 __pycache__
 benchmarks/weights
+
+# Precomputed embedding caches — regenerable via
+# benchmarks/pepland_precompute_embeddings.py and
+# benchmarks/peptideclm2_precompute_embeddings.py.
+# Too large for GitHub (one exceeds the 100MB hard limit).
+benchmarks/pretrained_weights/*_embeddings.pt
