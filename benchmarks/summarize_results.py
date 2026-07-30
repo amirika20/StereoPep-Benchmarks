@@ -46,11 +46,22 @@ MODEL_NAMES = {
     "results_morgan_mlp":           "Morgan FP MLP",
 }
 
-# Same display names for --dataset natural runs (e.g. "results_gin_scratch_natural"
-# -> "GIN"), used to build a separate natural-only table/df — never merged with
-# the main MODEL_NAMES dict, since a stereopep and a natural result must never
-# collide onto the same display-name row within one table.
-MODEL_NAMES_NATURAL = {f"{k}_natural": v for k, v in MODEL_NAMES.items()}
+# Subset runs (--dataset natural / noncanonical) reuse the same display names via
+# a suffixed stem, e.g. "results_gin_scratch_natural" -> "GIN". Each subset gets
+# its own table/df and is never merged into MODEL_NAMES, since a stereopep result
+# and a subset result must never collide onto the same display-name row.
+SUBSET_DATASETS = ("natural", "noncanonical")
+
+SUBSET_MODEL_NAMES = {
+    subset: {f"{k}_{subset}": v for k, v in MODEL_NAMES.items()}
+    for subset in SUBSET_DATASETS
+}
+
+# Human-readable description of each subset, used in table captions.
+SUBSET_CAPTIONS = {
+    "natural": "natural (canonical-amino-acid-only) StereoPep subset",
+    "noncanonical": "non-canonical (D-Phe-containing only) StereoPep subset",
+}
 
 MODEL_ORDER = [
     "GIN",
@@ -718,19 +729,19 @@ def save_latex_tables(df: pd.DataFrame):
         print(f"  Saved: {path}")
 
 
-def save_latex_table_natural(df_natural: pd.DataFrame):
-    """Write the natural-dataset (canonical-amino-acid-only) overall performance
-    table, same style as save_latex_tables. No pair tables — 'natural' has no
-    diastereomer/tag/mutation splits (they require non-canonical residues)."""
+def save_latex_table_subset(df_subset: pd.DataFrame, subset: str):
+    """Write a subset (natural / noncanonical) overall-performance table, same
+    style as save_latex_tables. No pair tables: neither subset has usable
+    diastereomer/tag/mutation splits (see benchmarks/stereopep_datasets.py)."""
     tex = _latex_table(
-        df_natural,
+        df_subset,
         OVERALL_PERFORMANCE_COLUMNS,
         "Overall regression performance on \\%B prediction, trained and evaluated on the "
-        "natural (canonical-amino-acid-only) StereoPep subset (mean $\\pm$ std over seeds; "
+        f"{SUBSET_CAPTIONS[subset]} (mean $\\pm$ std over seeds; "
         "bold denotes best per column). " + OVERALL_PERFORMANCE_METRIC_DEFS,
-        "tab:overall_performance_natural",
+        f"tab:overall_performance_{subset}",
     )
-    path = os.path.join(METRICS_DIR, "latex_overall_performance_natural.tex")
+    path = os.path.join(METRICS_DIR, f"latex_overall_performance_{subset}.tex")
     with open(path, "w") as f:
         f.write(tex)
     print(f"  Saved: {path}")
@@ -740,13 +751,20 @@ def save_latex_table_natural(df_natural: pd.DataFrame):
 # Main
 # ---------------------------------------------------------------------------
 def main():
-    # Load — split into stereopep (full dataset) vs. natural (canonical-only,
-    # "..._natural" stems) so they never share a table/figure. Natural results
-    # have no diastereomer/tag/mutation pairs (those need non-canonical
-    # residues), so they only get an overall-performance table.
+    # Load — split into stereopep (full dataset) vs. each subset run ("..._natural",
+    # "..._noncanonical") so they never share a table or figure. Subset results have
+    # no usable diastereomer/tag/mutation pairs, so they only get an
+    # overall-performance table. Note the main `grouped` must exclude EVERY subset
+    # suffix, or a subset row would silently land in the headline table.
     grouped_all = load_results(OUTPUT_DIR)
-    grouped = {k: v for k, v in grouped_all.items() if not k.endswith("_natural")}
-    grouped_natural = {k: v for k, v in grouped_all.items() if k.endswith("_natural")}
+    grouped = {
+        k: v for k, v in grouped_all.items()
+        if not any(k.endswith(f"_{s}") for s in SUBSET_DATASETS)
+    }
+    grouped_subsets = {
+        subset: {k: v for k, v in grouped_all.items() if k.endswith(f"_{subset}")}
+        for subset in SUBSET_DATASETS
+    }
 
     df = aggregate(grouped)
 
@@ -760,12 +778,14 @@ def main():
     # LaTeX tables
     save_latex_tables(df)
 
-    if grouped_natural:
-        df_natural = aggregate(grouped_natural, names=MODEL_NAMES_NATURAL)
-        save_summary(df_natural, stem="summary_natural")
-        save_latex_table_natural(df_natural)
-    else:
-        df_natural = None
+    df_subsets = {}
+    for subset, grouped_subset in grouped_subsets.items():
+        if not grouped_subset:
+            continue
+        df_subset = aggregate(grouped_subset, names=SUBSET_MODEL_NAMES[subset])
+        save_summary(df_subset, stem=f"summary_{subset}")
+        save_latex_table_subset(df_subset, subset)
+        df_subsets[subset] = df_subset
 
     # -----------------------------------------------------------------------
     # Figures
