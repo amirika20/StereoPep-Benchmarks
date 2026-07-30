@@ -54,6 +54,10 @@ from scipy import stats
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, roc_auc_score
 from torch.utils.data import DataLoader, TensorDataset
 
+# Local module (benchmarks/ is on sys.path when these scripts are run directly).
+from stereopep_datasets import (DATASET_CHOICES, DATASET_HELP,  # noqa: E402
+                               has_pair_splits, load_benchmark_dataset, results_stem)
+
 # ── config ────────────────────────────────────────────────────────────────────
 HF_REPO = "stereopep-ano/StereoPep"
 EMBEDDINGS_DIR = Path(__file__).parent / "pretrained_weights"
@@ -377,7 +381,7 @@ def run_one_seed(
         sub_metrics = eval_pair_metrics(mlp, emb_sub_a, emb_sub_b, sub_pairs)
         print(f"  Substitution-pair delta Pearson: {sub_metrics['delta_pearson']:+.4f}")
     else:
-        print("  (pair evals skipped — natural-only dataset has no diastereomer/tag/mutation pairs)")
+        print("  (pair evals skipped — this subset has no usable diastereomer/tag/mutation pairs)")
         stereo_metrics = stereo_trainval_metrics = tag_metrics = sub_metrics = None
 
     return test_metrics, train_metrics, stereo_metrics, stereo_trainval_metrics, tag_metrics, sub_metrics, history
@@ -402,17 +406,14 @@ def main() -> None:
             "(default: hybrid_base)"
         ),
     )
-    parser.add_argument("--dataset", choices=["stereopep", "natural"], default="stereopep",
-                        help="'stereopep' (default): full dataset, includes diastereomer/tag/mutation "
-                             "pair evals. 'natural': canonical-amino-acid-only subset; pair evals are "
-                             "skipped since they require non-canonical/D-form peptides. All natural "
-                             "SMILES are already covered by the existing embedding caches.")
+    parser.add_argument("--dataset", choices=list(DATASET_CHOICES), default="stereopep",
+                        help=DATASET_HELP)
     args = parser.parse_args()
 
     seed       = args.seed
     MAX_EPOCHS = args.epochs
     PATIENCE   = max(1, int(0.10 * MAX_EPOCHS))
-    natural    = args.dataset == "natural"
+    subset     = not has_pair_splits(args.dataset)
 
     if args.model.strip().lower() == "all":
         model_keys = ALL_MODELS
@@ -426,9 +427,9 @@ def main() -> None:
           f"|  max_epochs={MAX_EPOCHS}  |  patience={PATIENCE}")
     print(f"Models : {model_keys}")
 
-    print(f"\n[data] Loading stereopep dataset (config={'natural' if natural else 'StereoPep'}) …")
-    ds = hf_load_dataset(HF_REPO, "natural" if natural else "StereoPep")
-    if natural:
+    print(f"\n[data] Loading stereopep dataset (dataset={args.dataset}) …")
+    ds = load_benchmark_dataset(HF_REPO, args.dataset)
+    if subset:
         stereo = stereo_trainval = tag_pairs = sub_pairs = None
     else:
         stereo          = hf_load_dataset(HF_REPO, "diastereomer_pairs")["diastereomer_pairs"]
@@ -454,7 +455,7 @@ def main() -> None:
         X_val,   _ = embed_sequences(model_key, ds["val"]["SMILES"])
         X_test,  _ = embed_sequences(model_key, ds["test"]["SMILES"])
 
-        if not natural:
+        if not subset:
             emb_stereo_f, _ = embed_sequences(model_key, stereo["SMILES_f"])
             emb_stereo_F, _ = embed_sequences(model_key, stereo["SMILES_F"])
             emb_strv_f,   _ = embed_sequences(model_key, stereo_trainval["SMILES_f"])
@@ -467,7 +468,7 @@ def main() -> None:
             emb_stereo_f = emb_stereo_F = emb_strv_f = emb_strv_F = None
             emb_tag_a = emb_tag_b = emb_sub_a = emb_sub_b = None
 
-        stem = f"results_{model_key}_natural" if natural else f"results_{model_key}"
+        stem = results_stem(f"results_{model_key}", args.dataset)
         weights_path = WEIGHTS_DIR / f"{stem}_seed{seed}.pt"
         print(f"\n── Seed {seed} ──")
         test_metrics, train_metrics, stereo_metrics, stereo_trainval_metrics, tag_metrics, sub_metrics, history = run_one_seed(
