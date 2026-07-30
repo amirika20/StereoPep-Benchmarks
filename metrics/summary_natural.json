@@ -1,0 +1,412 @@
+{
+  "GIN": {
+    "n_seeds": 3,
+    "test_metrics": {
+      "mse": {
+        "mean": 47.9265,
+        "std": 1.1454
+      },
+      "rmse": {
+        "mean": 6.9226,
+        "std": 0.0827
+      },
+      "mae": {
+        "mean": 4.5048,
+        "std": 0.0788
+      },
+      "mean_error": {
+        "mean": -2.2804,
+        "std": 0.4093
+      },
+      "r2": {
+        "mean": 0.5344,
+        "std": 0.0111
+      },
+      "pearson": {
+        "mean": 0.7748,
+        "std": 0.022
+      },
+      "spearman": {
+        "mean": 0.8347,
+        "std": 0.0224
+      },
+      "kendall": {
+        "mean": 0.6548,
+        "std": 0.0256
+      }
+    },
+    "stereo_metrics": {},
+    "stereo_trainval_metrics": {},
+    "tag_pair_metrics": {},
+    "substitution_pair_metrics": {}
+  },
+  "Pretrained GIN": {
+    "n_seeds": 3,
+    "test_metrics": {
+      "mse": {
+        "mean": 57.2646,
+        "std": 1.6414
+      },
+      "rmse": {
+        "mean": 7.5668,
+        "std": 0.1082
+      },
+      "mae": {
+        "mean": 5.1261,
+        "std": 0.0563
+      },
+      "mean_error": {
+        "mean": -2.4278,
+        "std": 0.2083
+      },
+      "r2": {
+        "mean": 0.4437,
+        "std": 0.0159
+      },
+      "pearson": {
+        "mean": 0.7129,
+        "std": 0.0036
+      },
+      "spearman": {
+        "mean": 0.7788,
+        "std": 0.012
+      },
+      "kendall": {
+        "mean": 0.5884,
+        "std": 0.0116
+      }
+    },
+    "stereo_metrics": {},
+    "stereo_trainval_metrics": {},
+    "tag_pair_metrics": {},
+    "substitution_pair_metrics": {}
+  },
+  "Pretrained PepLand": {
+    "n_seeds": 3,
+    "test_metrics": {
+      "mse": {
+        "mean": 64.2893,
+        "std": 3.388
+      },
+      "rmse": {
+        "mean": 8.0162,
+        "std": 0.2118
+      },
+      "mae": {
+        "mean": 5.2815,
+        "std": 0.158
+      },
+      "mean_error": {
+        "mean": -3.8126,
+        "std": 0.2291
+      },
+      "r2": {
+        "mean": 0.3755,
+        "std": 0.0329
+      },
+      "pearson": {
+        "mean": 0.7273,
+        "std": 0.0134
+      },
+      "spearman": {
+        "mean": 0.7846,
+        "std": 0.015
+      },
+      "kendall": {
+        "mean": 0.6078,
+        "std": 0.0111
+      }
+    },
+    "stereo_metrics": {},
+    "stereo_trainval_metrics": {},
+    "tag_pair_metrics": {},
+    "substitution_pair_metrics": {}
+  },
+  "PeptideCLM-2-Hybrid": {
+    "n_seeds": 3,
+    "test_metrics": {
+      "mse": {
+        "mean": 57.3313,
+        "std": 5.4351
+      },
+      "rmse": {
+        "mean": 7.5662,
+        "std": 0.3552
+      },
+      "mae": {
+        "mean": 5.0841,
+        "std": 0.2204
+      },
+      "mean_error": {
+        "mean": -3.1125,
+        "std": 0.1424
+      },
+      "r2": {
+        "mean": 0.4431,
+        "std": 0.0528
+      },
+      "pearson": {
+        "mean": 0.7353,
+        "std": 0.0347
+      },
+      "spearman": {
+        "mean": 0.7827,
+        "std": 0.0336
+      },
+      "kendall": {
+        "mean": 0.602,
+        "std": 0.0297
+      }
+    },
+    "stereo_metrics": {},
+    "stereo_trainval_metrics": {},
+    "tag_pair_metrics": {},
+    "substitution_pair_metrics": {}
+  },
+  "ChemBERTa-2-MLM": {
+    "n_seeds": 3,
+    "test_metrics": {
+      "mse": {
+        "mean": 50.0057,
+        "std": 5.4629
+      },
+      "rmse": {
+        "mean": 7.0644,
+        "std": 0.3883
+      },
+      "mae": {
+        "mean": 4.6916,
+        "std": 0.2718
+      },
+      "mean_error": {
+        "mean": -2.8533,
+        "std": 0.384
+      },
+      "r2": {
+        "mean": 0.5142,
+        "std": 0.0531
+      },
+      "pearson": {
+        "mean": 0.7871,
+        "std": 0.022
+      },
+      "spearman": {
+        "mean": 0.8396,
+        "std": 0.0242
+      },
+      "kendall": {
+        "mean": 0.6611,
+        "std": 0.027
+      }
+    },
+    "stereo_metrics": {},
+    "stereo_trainval_metrics": {},
+    "tag_pair_metrics": {},
+    "substitution_pair_metrics": {}
+  },
+  "ChemBERTa-2-MTR": {
+    "n_seeds": 3,
+    "test_metrics": {
+      "mse": {
+        "mean": 58.3072,
+        "std": 3.8839
+      },
+      "rmse": {
+        "mean": 7.6331,
+        "std": 0.2523
+      },
+      "mae": {
+        "mean": 5.3193,
+        "std": 0.2481
+      },
+      "mean_error": {
+        "mean": -3.6482,
+        "std": 0.3068
+      },
+      "r2": {
+        "mean": 0.4336,
+        "std": 0.0377
+      },
+      "pearson": {
+        "mean": 0.7662,
+        "std": 0.0138
+      },
+      "spearman": {
+        "mean": 0.8127,
+        "std": 0.0088
+      },
+      "kendall": {
+        "mean": 0.6281,
+        "std": 0.0104
+      }
+    },
+    "stereo_metrics": {},
+    "stereo_trainval_metrics": {},
+    "tag_pair_metrics": {},
+    "substitution_pair_metrics": {}
+  },
+  "Transformer": {
+    "n_seeds": 3,
+    "test_metrics": {
+      "mse": {
+        "mean": 53.7175,
+        "std": 3.2819
+      },
+      "rmse": {
+        "mean": 7.3269,
+        "std": 0.2252
+      },
+      "mae": {
+        "mean": 5.193,
+        "std": 0.3122
+      },
+      "mean_error": {
+        "mean": -2.5343,
+        "std": 0.702
+      },
+      "r2": {
+        "mean": 0.4782,
+        "std": 0.0319
+      },
+      "pearson": {
+        "mean": 0.7425,
+        "std": 0.0502
+      },
+      "spearman": {
+        "mean": 0.7969,
+        "std": 0.0423
+      },
+      "kendall": {
+        "mean": 0.6068,
+        "std": 0.0487
+      }
+    },
+    "stereo_metrics": {},
+    "stereo_trainval_metrics": {},
+    "tag_pair_metrics": {},
+    "substitution_pair_metrics": {}
+  },
+  "DeepLC": {
+    "n_seeds": 3,
+    "test_metrics": {
+      "mse": {
+        "mean": 42.2333,
+        "std": 6.2407
+      },
+      "rmse": {
+        "mean": 6.4873,
+        "std": 0.4721
+      },
+      "mae": {
+        "mean": 4.3249,
+        "std": 0.2748
+      },
+      "mean_error": {
+        "mean": -2.7823,
+        "std": 0.4035
+      },
+      "r2": {
+        "mean": 0.5897,
+        "std": 0.0606
+      },
+      "pearson": {
+        "mean": 0.8261,
+        "std": 0.0163
+      },
+      "spearman": {
+        "mean": 0.8722,
+        "std": 0.0149
+      },
+      "kendall": {
+        "mean": 0.7018,
+        "std": 0.0194
+      }
+    },
+    "stereo_metrics": {},
+    "stereo_trainval_metrics": {},
+    "tag_pair_metrics": {},
+    "substitution_pair_metrics": {}
+  },
+  "DeepRT-CapsNet": {
+    "n_seeds": 3,
+    "test_metrics": {
+      "mse": {
+        "mean": 48.6351,
+        "std": 6.3212
+      },
+      "rmse": {
+        "mean": 6.9641,
+        "std": 0.4535
+      },
+      "mae": {
+        "mean": 4.8601,
+        "std": 0.3569
+      },
+      "mean_error": {
+        "mean": -1.8306,
+        "std": 0.7379
+      },
+      "r2": {
+        "mean": 0.5275,
+        "std": 0.0614
+      },
+      "pearson": {
+        "mean": 0.7685,
+        "std": 0.0489
+      },
+      "spearman": {
+        "mean": 0.8224,
+        "std": 0.0384
+      },
+      "kendall": {
+        "mean": 0.6363,
+        "std": 0.0432
+      }
+    },
+    "stereo_metrics": {},
+    "stereo_trainval_metrics": {},
+    "tag_pair_metrics": {},
+    "substitution_pair_metrics": {}
+  },
+  "Morgan FP MLP": {
+    "n_seeds": 3,
+    "test_metrics": {
+      "mse": {
+        "mean": 74.0237,
+        "std": 3.6445
+      },
+      "rmse": {
+        "mean": 8.602,
+        "std": 0.2117
+      },
+      "mae": {
+        "mean": 6.2097,
+        "std": 0.1372
+      },
+      "mean_error": {
+        "mean": -1.455,
+        "std": 0.1395
+      },
+      "r2": {
+        "mean": 0.2809,
+        "std": 0.0354
+      },
+      "pearson": {
+        "mean": 0.5641,
+        "std": 0.0217
+      },
+      "spearman": {
+        "mean": 0.6309,
+        "std": 0.0203
+      },
+      "kendall": {
+        "mean": 0.444,
+        "std": 0.0155
+      }
+    },
+    "stereo_metrics": {},
+    "stereo_trainval_metrics": {},
+    "tag_pair_metrics": {},
+    "substitution_pair_metrics": {}
+  }
+}

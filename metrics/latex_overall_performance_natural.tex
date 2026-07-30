@@ -1,0 +1,23 @@
+\begin{table*}[htbp]
+  \caption{Overall regression performance on \%B prediction, trained and evaluated on the natural (canonical-amino-acid-only) StereoPep subset (mean $\pm$ std over seeds; bold denotes best per column). Metrics: Pearson correlation ($r$), Spearman rank correlation ($\rho$), Kendall rank correlation ($\tau$), coefficient of determination ($R^2$), root mean squared error (RMSE), mean absolute error (MAE), and mean error (ME).}
+  \label{tab:overall_performance_natural}
+  \centering
+  \scriptsize
+  \setlength{\tabcolsep}{6pt}
+  \begin{tabular}{lccccccc}
+    \toprule
+    \textbf{Model} & \textbf{$r$} & \textbf{$\rho$} & \textbf{$\tau$} & \textbf{$R^2$} & \textbf{RMSE} & \textbf{MAE} & \textbf{ME} \\
+    \midrule
+    GIN & 0.77 $\pm$ 0.02 & 0.83 $\pm$ 0.02 & 0.65 $\pm$ 0.03 & 0.53 $\pm$ 0.01 & 6.92 $\pm$ 0.08 & 4.50 $\pm$ 0.08 & -2.28 $\pm$ 0.41 \\
+    Pretrained GIN & 0.71 $\pm$ 0.00 & 0.78 $\pm$ 0.01 & 0.59 $\pm$ 0.01 & 0.44 $\pm$ 0.02 & 7.57 $\pm$ 0.11 & 5.13 $\pm$ 0.06 & -2.43 $\pm$ 0.21 \\
+    Pretrained PepLand & 0.73 $\pm$ 0.01 & 0.78 $\pm$ 0.01 & 0.61 $\pm$ 0.01 & 0.38 $\pm$ 0.03 & 8.02 $\pm$ 0.21 & 5.28 $\pm$ 0.16 & -3.81 $\pm$ 0.23 \\
+    PeptideCLM-2-Hybrid & 0.74 $\pm$ 0.03 & 0.78 $\pm$ 0.03 & 0.60 $\pm$ 0.03 & 0.44 $\pm$ 0.05 & 7.57 $\pm$ 0.36 & 5.08 $\pm$ 0.22 & -3.11 $\pm$ 0.14 \\
+    ChemBERTa-2-MLM & 0.79 $\pm$ 0.02 & 0.84 $\pm$ 0.02 & 0.66 $\pm$ 0.03 & 0.51 $\pm$ 0.05 & 7.06 $\pm$ 0.39 & 4.69 $\pm$ 0.27 & -2.85 $\pm$ 0.38 \\
+    ChemBERTa-2-MTR & 0.77 $\pm$ 0.01 & 0.81 $\pm$ 0.01 & 0.63 $\pm$ 0.01 & 0.43 $\pm$ 0.04 & 7.63 $\pm$ 0.25 & 5.32 $\pm$ 0.25 & -3.65 $\pm$ 0.31 \\
+    Transformer & 0.74 $\pm$ 0.05 & 0.80 $\pm$ 0.04 & 0.61 $\pm$ 0.05 & 0.48 $\pm$ 0.03 & 7.33 $\pm$ 0.23 & 5.19 $\pm$ 0.31 & -2.53 $\pm$ 0.70 \\
+    DeepLC & \textbf{0.83 $\pm$ 0.02} & \textbf{0.87 $\pm$ 0.01} & \textbf{0.70 $\pm$ 0.02} & \textbf{0.59 $\pm$ 0.06} & \textbf{6.49 $\pm$ 0.47} & \textbf{4.32 $\pm$ 0.27} & -2.78 $\pm$ 0.40 \\
+    DeepRT-CapsNet & 0.77 $\pm$ 0.05 & 0.82 $\pm$ 0.04 & 0.64 $\pm$ 0.04 & 0.53 $\pm$ 0.06 & 6.96 $\pm$ 0.45 & 4.86 $\pm$ 0.36 & -1.83 $\pm$ 0.74 \\
+    Morgan FP MLP & 0.56 $\pm$ 0.02 & 0.63 $\pm$ 0.02 & 0.44 $\pm$ 0.02 & 0.28 $\pm$ 0.04 & 8.60 $\pm$ 0.21 & 6.21 $\pm$ 0.14 & \textbf{-1.46 $\pm$ 0.14} \\
+    \bottomrule
+  \end{tabular}
+\end{table*}

@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Run all 11 model configs already in the stereopep summary table against
+# Run all 13 model configs already in the stereopep summary table against
 # the StereoPep 'natural' config (canonical-amino-acid-only), locally and
 # serially (no SLURM/cluster — matches how the learning curve sweep was run
 # on this laptop). 3 seeds each, --epochs 1000 to match the same
@@ -40,6 +40,8 @@ run gin_scratch          python3 benchmarks/gin_scratch.py
 run pretrained_gin       python3 benchmarks/pretrained_gin.py
 run pepland              python3 benchmarks/pepland.py
 run peptideclm2_hybrid   python3 benchmarks/peptideclm2_embedding.py --model hybrid_base
+run chemberta2_mlm_77m   python3 benchmarks/chemberta2_embedding.py --model mlm_77m
+run chemberta2_mtr_77m   python3 benchmarks/chemberta2_embedding.py --model mtr_77m
 run esm3_sm              python3 benchmarks/esm3_embedding.py --model esm3_sm
 run esmc_300m            python3 benchmarks/esm3_embedding.py --model esmc_300m
 run esmc_600m            python3 benchmarks/esm3_embedding.py --model esmc_600m

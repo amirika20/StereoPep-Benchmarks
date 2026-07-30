@@ -35,6 +35,8 @@ MODEL_NAMES = {
     "results_pretrained_gin":       "Pretrained GIN",
     "results_pepland":              "Pretrained PepLand",
     "results_hybrid_base":          "PeptideCLM-2-Hybrid",
+    "results_chemberta2_mlm_77m":   "ChemBERTa-2-MLM",
+    "results_chemberta2_mtr_77m":   "ChemBERTa-2-MTR",
     "results_esm3_sm_embedding":    "ESM3-small",
     "results_esmc_300m_embedding":  "ESMC-300M",
     "results_esmc_600m_embedding":  "ESMC-600M",
@@ -44,11 +46,19 @@ MODEL_NAMES = {
     "results_morgan_mlp":           "Morgan FP MLP",
 }
 
+# Same display names for --dataset natural runs (e.g. "results_gin_scratch_natural"
+# -> "GIN"), used to build a separate natural-only table/df — never merged with
+# the main MODEL_NAMES dict, since a stereopep and a natural result must never
+# collide onto the same display-name row within one table.
+MODEL_NAMES_NATURAL = {f"{k}_natural": v for k, v in MODEL_NAMES.items()}
+
 MODEL_ORDER = [
     "GIN",
     "Pretrained GIN",
     "Pretrained PepLand",
     "PeptideCLM-2-Hybrid",
+    "ChemBERTa-2-MLM",
+    "ChemBERTa-2-MTR",
     "ESM3-small",
     "ESMC-300M",
     "ESMC-600M",
@@ -64,6 +74,8 @@ PALETTE = {
     "Pretrained GIN":     "#6baed6",
     "Pretrained PepLand": "#17becf",
     "PeptideCLM-2-Hybrid": "#e377c2",
+    "ChemBERTa-2-MLM":    "#dbdb8d",
+    "ChemBERTa-2-MTR":    "#bcbd22",
     "ESM3-small":         "#238b45",
     "ESMC-300M":          "#74c476",
     "ESMC-600M":          "#00441b",
@@ -150,16 +162,19 @@ METRICS_FLAT = {
 }
 
 
-def aggregate(grouped: dict[str, list[dict]]) -> pd.DataFrame:
+def aggregate(grouped: dict[str, list[dict]], names: dict[str, str] = MODEL_NAMES) -> pd.DataFrame:
     """Return a DataFrame with mean ± std for every metric, one row per model."""
     rows = []
     for key, results in grouped.items():
-        display = MODEL_NAMES.get(key, key)
+        display = names.get(key, key)
         seed_vals: dict[str, list[float]] = defaultdict(list)
 
         for r in results:
             for col, (section, field) in METRICS_FLAT.items():
-                val = r.get(section, {}).get(field, None)
+                # (r.get(section) or {}): natural-dataset results store these
+                # sections as JSON null (no diastereomer/tag/mutation pairs
+                # exist for canonical-only data), not a missing key.
+                val = (r.get(section) or {}).get(field, None)
                 if val is not None:
                     seed_vals[col].append(float(val))
 
@@ -183,9 +198,9 @@ def aggregate(grouped: dict[str, list[dict]]) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 # 3. Save summary files
 # ---------------------------------------------------------------------------
-def save_summary(df: pd.DataFrame):
-    csv_path  = os.path.join(METRICS_DIR, "summary.csv")
-    json_path = os.path.join(METRICS_DIR, "summary.json")
+def save_summary(df: pd.DataFrame, stem: str = "summary"):
+    csv_path  = os.path.join(METRICS_DIR, f"{stem}.csv")
+    json_path = os.path.join(METRICS_DIR, f"{stem}.json")
 
     df.to_csv(csv_path, index=False)
 
@@ -511,21 +526,17 @@ def _latex_table(
     label: str,
 ) -> str:
     """
-    Build a NeurIPS-compliant LaTeX table.
+    Build a full-width LaTeX table (table* / scriptsize / single-line
+    mean $\\pm$ std cells, matching the paper's established style).
 
-    Follows NeurIPS formatting rules:
-    - Caption (lower-case except first word) placed BEFORE the tabular.
-    - No vertical rules anywhere.
-    - Only \toprule, \midrule (after header), \bottomrule — no rules between rows.
-    - Column headers rotated 45° to save horizontal space.
-    - Each data cell uses \makecell: mean on line 1, ±std on line 2.
+    - \\begin{table*}[htbp], \\scriptsize, \\setlength{\\tabcolsep}{6pt}.
+    - Plain (non-rotated) bold headers; each data cell is "mean $\\pm$ std"
+      on one line, formatted to 2 decimals.
+    - Only \\toprule, \\midrule (after header), \\bottomrule.
     - Best value per column is bold.
-    - Whole table set in \small.
 
     Required packages:
         \\usepackage{booktabs}
-        \\usepackage{makecell}
-        \\usepackage{graphicx}
     """
     def _higher(key: str) -> bool:
         low_keys = {"mse", "rmse", "mae", "mean_error", "error"}
@@ -550,10 +561,8 @@ def _latex_table(
     # No vertical rules — l for model name, c for each metric
     col_spec = "l" + "c" * len(columns)
 
-    # Rotated headers to keep columns narrow
-    rotated_headers = " & ".join(
-        [r"\textbf{Model}"]
-        + [r"\rotatebox{45}{\textbf{" + h + r"}}" for _, h in columns]
+    headers = " & ".join(
+        [r"\textbf{Model}"] + [r"\textbf{" + h + r"}" for _, h in columns]
     )
 
     rows_tex = []
@@ -564,84 +573,104 @@ def _latex_table(
             if mc not in df.columns or pd.isna(row.get(mc)):
                 cells.append("--")
             else:
-                mean_str = f"{row[mc]:.3f}"
-                std_str  = f"$\\pm${row[sc]:.3f}"
-                cell = r"\makecell{" + mean_str + r" \\ " + std_str + r"}"
+                cell = f"{row[mc]:.2f} $\\pm$ {row[sc]:.2f}"
                 if best.get(key) == ridx:
                     cell = r"\textbf{" + cell + r"}"
                 cells.append(cell)
-        # NeurIPS: no \midrule between data rows
-        rows_tex.append("  " + " & ".join(cells) + r" \\")
+        rows_tex.append("    " + " & ".join(cells) + r" \\")
 
     body = "\n".join(rows_tex)
 
     tex = (
-        r"\begin{table}[htbp]" + "\n"
+        r"\begin{table*}[htbp]" + "\n"
         r"  \caption{" + caption + r"}" + "\n"
         r"  \label{" + label + r"}" + "\n"
         r"  \centering" + "\n"
-        r"  \small" + "\n"
+        r"  \scriptsize" + "\n"
+        r"  \setlength{\tabcolsep}{6pt}" + "\n"
         r"  \begin{tabular}{" + col_spec + r"}" + "\n"
         r"    \toprule" + "\n"
-        f"    {rotated_headers} \\\\\n"
+        f"    {headers} \\\\\n"
         r"    \midrule" + "\n"
         + body + "\n"
         r"    \bottomrule" + "\n"
         r"  \end{tabular}" + "\n"
-        r"\end{table}" + "\n"
+        r"\end{table*}" + "\n"
     )
     return tex
 
 
+# Column definitions shared by every pairwise-comparison table (diastereomer,
+# tagging, point-mutation): pairwise ordering accuracy plus correlation/error
+# of the predicted vs. true %B delta within each pair.
+_PAIR_COLUMNS_TEMPLATE = [
+    "{p}ordering_acc",
+    "{p}delta_pearson",
+    "{p}delta_spearman",
+    "{p}delta_kendall",
+    "{p}delta_auc",
+    "{p}delta_rmse",
+    "{p}delta_mae",
+]
+_PAIR_HEADERS = [
+    "Pairwise Acc.", "$\\Delta$ Pearson", "$\\Delta$ Spearman",
+    "$\\Delta$ Kendall", "$\\Delta$ AUC", "$\\Delta$ RMSE", "$\\Delta$ MAE",
+]
+_PAIR_METRIC_DEFS = (
+    "Metrics: pairwise ordering accuracy (Pairwise Acc.) at ranking each pair correctly by "
+    "predicted vs.\\ true \\%B, and the Pearson ($\\Delta r$), Spearman ($\\Delta\\rho$), and "
+    "Kendall ($\\Delta\\tau$) correlation, area under the ROC curve ($\\Delta$AUC), root mean "
+    "squared error ($\\Delta$RMSE), and mean absolute error ($\\Delta$MAE) of the predicted vs.\\ "
+    "true \\%B delta within each pair."
+)
+
+
+def _pair_columns(prefix: str) -> list[tuple[str, str]]:
+    keys = [c.format(p=prefix) for c in _PAIR_COLUMNS_TEMPLATE]
+    return list(zip(keys, _PAIR_HEADERS))
+
+
+OVERALL_PERFORMANCE_COLUMNS = [
+    ("pearson",    "$r$"),
+    ("spearman",   "$\\rho$"),
+    ("kendall",    "$\\tau$"),
+    ("r2",         "$R^2$"),
+    ("rmse",       "RMSE"),
+    ("mae",        "MAE"),
+    ("mean_error", "ME"),
+]
+OVERALL_PERFORMANCE_METRIC_DEFS = (
+    "Metrics: Pearson correlation ($r$), Spearman rank correlation ($\\rho$), Kendall rank "
+    "correlation ($\\tau$), coefficient of determination ($R^2$), root mean squared error (RMSE), "
+    "mean absolute error (MAE), and mean error (ME)."
+)
+
+
 def save_latex_tables(df: pd.DataFrame):
-    """Write four .tex files — one per evaluation category."""
+    """Write six .tex files — one per evaluation category."""
 
     tables = [
         # ---- 1. Overall regression performance --------------------------------
         (
-            [
-                ("pearson",    "Pearson $r$"),
-                ("spearman",   "Spearman $\\rho$"),
-                ("kendall",    "Kendall $\\tau$"),
-                ("r2",         "$R^2$"),
-                ("rmse",       "RMSE"),
-                ("mae",        "MAE"),
-                ("mean_error", "Mean Error"),
-            ],
-            "Overall regression performance on B\\% prediction (mean $\\pm$ std over seeds; "
-            "bold denotes best per column).",
+            OVERALL_PERFORMANCE_COLUMNS,
+            "Overall regression performance on \\%B prediction (mean $\\pm$ std over seeds; "
+            "bold denotes best per column). " + OVERALL_PERFORMANCE_METRIC_DEFS,
             "tab:overall_performance",
             "latex_overall_performance.tex",
         ),
         # ---- 2. Diastereomer performance (test) --------------------------------
         (
-            [
-                ("ordering_acc",   "Pairwise Acc."),
-                ("delta_pearson",  "$\\Delta$ Pearson"),
-                ("delta_spearman", "$\\Delta$ Spearman"),
-                ("delta_kendall",  "$\\Delta$ Kendall"),
-                ("delta_auc",      "$\\Delta$ AUC"),
-                ("delta_rmse",     "$\\Delta$ RMSE"),
-                ("delta_mae",      "$\\Delta$ MAE"),
-            ],
-            "Diastereomer-pair performance (D/L-Phe pairs, test set; mean $\\pm$ std over seeds; "
-            "bold denotes best per column).",
+            _pair_columns(""),
+            "Diastereomer-pair (D-Phe/L-Phe) performance, test set (mean $\\pm$ std over seeds; "
+            "bold denotes best per column). " + _PAIR_METRIC_DEFS,
             "tab:diastereomer_performance",
             "latex_diastereomer_performance.tex",
         ),
         # ---- 2b. Diastereomer performance (trainval) --------------------------
         (
-            [
-                ("tv_ordering_acc",   "Pairwise Acc."),
-                ("tv_delta_pearson",  "$\\Delta$ Pearson"),
-                ("tv_delta_spearman", "$\\Delta$ Spearman"),
-                ("tv_delta_kendall",  "$\\Delta$ Kendall"),
-                ("tv_delta_auc",      "$\\Delta$ AUC"),
-                ("tv_delta_rmse",     "$\\Delta$ RMSE"),
-                ("tv_delta_mae",      "$\\Delta$ MAE"),
-            ],
-            "Diastereomer-pair performance (D/L-Phe pairs, train+val set; mean $\\pm$ std over seeds; "
-            "bold denotes best per column).",
+            _pair_columns("tv_"),
+            "Diastereomer-pair (D-Phe/L-Phe) performance, train+val set (mean $\\pm$ std over "
+            "seeds; bold denotes best per column). " + _PAIR_METRIC_DEFS,
             "tab:diastereomer_trainval_performance",
             "latex_diastereomer_trainval_performance.tex",
         ),
@@ -656,40 +685,25 @@ def save_latex_tables(df: pd.DataFrame):
                 ("tv_delta_rmse",     "$\\Delta$ RMSE"),
                 ("tv_delta_mae",      "$\\Delta$ MAE"),
             ],
-            "Trainval stereo results: diastereomer-pair performance on train+val set "
-            "(mean $\\pm$ std over seeds; bold denotes best per column).",
+            "Trainval stereo results: diastereomer-pair performance on train+val set, ordered by "
+            "pairwise accuracy (mean $\\pm$ std over seeds; bold denotes best per column). "
+            + _PAIR_METRIC_DEFS,
             "tab:trainval_stereo_results",
             "latex_trainval_stereo_results.tex",
         ),
         # ---- 3. Point-mutation (substitution) performance ---------------------
         (
-            [
-                ("sub_ordering_acc",   "Pairwise Acc."),
-                ("sub_delta_pearson",  "$\\Delta$ Pearson"),
-                ("sub_delta_spearman", "$\\Delta$ Spearman"),
-                ("sub_delta_kendall",  "$\\Delta$ Kendall"),
-                ("sub_delta_auc",      "$\\Delta$ AUC"),
-                ("sub_delta_rmse",     "$\\Delta$ RMSE"),
-                ("sub_delta_mae",      "$\\Delta$ MAE"),
-            ],
-            "Point-mutation pair performance (single amino-acid substitutions; "
-            "mean $\\pm$ std over seeds; bold denotes best per column).",
+            _pair_columns("sub_"),
+            "Point-mutation pair performance (single amino-acid substitutions; mean $\\pm$ std "
+            "over seeds; bold denotes best per column). " + _PAIR_METRIC_DEFS,
             "tab:point_mutation_performance",
             "latex_point_mutation_performance.tex",
         ),
         # ---- 4. Tagging (addition-mutation) performance -----------------------
         (
-            [
-                ("tag_ordering_acc",   "Pairwise Acc."),
-                ("tag_delta_pearson",  "$\\Delta$ Pearson"),
-                ("tag_delta_spearman", "$\\Delta$ Spearman"),
-                ("tag_delta_kendall",  "$\\Delta$ Kendall"),
-                ("tag_delta_auc",      "$\\Delta$ AUC"),
-                ("tag_delta_rmse",     "$\\Delta$ RMSE"),
-                ("tag_delta_mae",      "$\\Delta$ MAE"),
-            ],
-            "Tagging (addition-mutation) pair performance (peptides with/without "
-            "F/f tag; mean $\\pm$ std over seeds; bold denotes best per column).",
+            _pair_columns("tag_"),
+            "Tagging (addition-mutation) pair performance (peptides with/without F/f tag; mean "
+            "$\\pm$ std over seeds; bold denotes best per column). " + _PAIR_METRIC_DEFS,
             "tab:tagging_performance",
             "latex_tagging_performance.tex",
         ),
@@ -704,12 +718,36 @@ def save_latex_tables(df: pd.DataFrame):
         print(f"  Saved: {path}")
 
 
+def save_latex_table_natural(df_natural: pd.DataFrame):
+    """Write the natural-dataset (canonical-amino-acid-only) overall performance
+    table, same style as save_latex_tables. No pair tables — 'natural' has no
+    diastereomer/tag/mutation splits (they require non-canonical residues)."""
+    tex = _latex_table(
+        df_natural,
+        OVERALL_PERFORMANCE_COLUMNS,
+        "Overall regression performance on \\%B prediction, trained and evaluated on the "
+        "natural (canonical-amino-acid-only) StereoPep subset (mean $\\pm$ std over seeds; "
+        "bold denotes best per column). " + OVERALL_PERFORMANCE_METRIC_DEFS,
+        "tab:overall_performance_natural",
+    )
+    path = os.path.join(METRICS_DIR, "latex_overall_performance_natural.tex")
+    with open(path, "w") as f:
+        f.write(tex)
+    print(f"  Saved: {path}")
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 def main():
-    # Load
-    grouped = load_results(OUTPUT_DIR)
+    # Load — split into stereopep (full dataset) vs. natural (canonical-only,
+    # "..._natural" stems) so they never share a table/figure. Natural results
+    # have no diastereomer/tag/mutation pairs (those need non-canonical
+    # residues), so they only get an overall-performance table.
+    grouped_all = load_results(OUTPUT_DIR)
+    grouped = {k: v for k, v in grouped_all.items() if not k.endswith("_natural")}
+    grouped_natural = {k: v for k, v in grouped_all.items() if k.endswith("_natural")}
+
     df = aggregate(grouped)
 
     # Save summary files
@@ -721,6 +759,13 @@ def main():
 
     # LaTeX tables
     save_latex_tables(df)
+
+    if grouped_natural:
+        df_natural = aggregate(grouped_natural, names=MODEL_NAMES_NATURAL)
+        save_summary(df_natural, stem="summary_natural")
+        save_latex_table_natural(df_natural)
+    else:
+        df_natural = None
 
     # -----------------------------------------------------------------------
     # Figures

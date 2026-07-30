@@ -499,6 +499,256 @@
       }
     }
   },
+  "ChemBERTa-2-MLM": {
+    "n_seeds": 10,
+    "test_metrics": {
+      "mse": {
+        "mean": 49.8625,
+        "std": 9.0194
+      },
+      "rmse": {
+        "mean": 7.038,
+        "std": 0.6042
+      },
+      "mae": {
+        "mean": 4.7837,
+        "std": 0.3967
+      },
+      "mean_error": {
+        "mean": -2.6187,
+        "std": 0.6421
+      },
+      "r2": {
+        "mean": 0.5317,
+        "std": 0.0847
+      },
+      "pearson": {
+        "mean": 0.7858,
+        "std": 0.0395
+      },
+      "spearman": {
+        "mean": 0.833,
+        "std": 0.0438
+      },
+      "kendall": {
+        "mean": 0.6552,
+        "std": 0.0433
+      }
+    },
+    "stereo_metrics": {
+      "ordering_acc": {
+        "mean": 0.6251,
+        "std": 0.0166
+      },
+      "delta_pearson": {
+        "mean": 0.167,
+        "std": 0.0233
+      },
+      "delta_spearman": {
+        "mean": 0.2105,
+        "std": 0.0302
+      },
+      "mean_pred_delta": {
+        "mean": 0.1829,
+        "std": 0.0121
+      },
+      "n_correct": {
+        "mean": 338.8,
+        "std": 9.0037
+      }
+    },
+    "stereo_trainval_metrics": {
+      "tv_ordering_acc": {
+        "mean": 0.6171,
+        "std": 0.0063
+      },
+      "tv_delta_pearson": {
+        "mean": 0.082,
+        "std": 0.0143
+      },
+      "tv_delta_spearman": {
+        "mean": 0.1149,
+        "std": 0.0137
+      },
+      "tv_mean_pred_delta": {
+        "mean": 0.1411,
+        "std": 0.0181
+      },
+      "tv_n_correct": {
+        "mean": 5145.7,
+        "std": 52.6668
+      }
+    },
+    "tag_pair_metrics": {
+      "tag_delta_pearson": {
+        "mean": 0.3918,
+        "std": 0.022
+      },
+      "tag_delta_spearman": {
+        "mean": 0.4415,
+        "std": 0.0265
+      },
+      "tag_delta_rmse": {
+        "mean": 6.5705,
+        "std": 0.1887
+      },
+      "tag_delta_mae": {
+        "mean": 4.558,
+        "std": 0.2183
+      },
+      "tag_ordering_acc": {
+        "mean": 0.9429,
+        "std": 0.0034
+      }
+    },
+    "substitution_pair_metrics": {
+      "sub_delta_pearson": {
+        "mean": 0.4467,
+        "std": 0.0071
+      },
+      "sub_delta_spearman": {
+        "mean": 0.4955,
+        "std": 0.0107
+      },
+      "sub_delta_rmse": {
+        "mean": 7.3306,
+        "std": 0.0478
+      },
+      "sub_delta_mae": {
+        "mean": 5.0004,
+        "std": 0.0588
+      },
+      "sub_ordering_acc": {
+        "mean": 0.7242,
+        "std": 0.0106
+      }
+    }
+  },
+  "ChemBERTa-2-MTR": {
+    "n_seeds": 10,
+    "test_metrics": {
+      "mse": {
+        "mean": 57.8671,
+        "std": 6.4388
+      },
+      "rmse": {
+        "mean": 7.5973,
+        "std": 0.4067
+      },
+      "mae": {
+        "mean": 5.289,
+        "std": 0.2838
+      },
+      "mean_error": {
+        "mean": -2.4813,
+        "std": 0.3936
+      },
+      "r2": {
+        "mean": 0.4565,
+        "std": 0.0605
+      },
+      "pearson": {
+        "mean": 0.7203,
+        "std": 0.0375
+      },
+      "spearman": {
+        "mean": 0.7548,
+        "std": 0.0368
+      },
+      "kendall": {
+        "mean": 0.576,
+        "std": 0.0342
+      }
+    },
+    "stereo_metrics": {
+      "ordering_acc": {
+        "mean": 0.6271,
+        "std": 0.0286
+      },
+      "delta_pearson": {
+        "mean": 0.1848,
+        "std": 0.0323
+      },
+      "delta_spearman": {
+        "mean": 0.2409,
+        "std": 0.0407
+      },
+      "mean_pred_delta": {
+        "mean": 0.0367,
+        "std": 0.0037
+      },
+      "n_correct": {
+        "mean": 339.9,
+        "std": 15.5095
+      }
+    },
+    "stereo_trainval_metrics": {
+      "tv_ordering_acc": {
+        "mean": 0.5617,
+        "std": 0.0103
+      },
+      "tv_delta_pearson": {
+        "mean": 0.0153,
+        "std": 0.0069
+      },
+      "tv_delta_spearman": {
+        "mean": 0.0229,
+        "std": 0.015
+      },
+      "tv_mean_pred_delta": {
+        "mean": 0.0298,
+        "std": 0.0028
+      },
+      "tv_n_correct": {
+        "mean": 4683.6,
+        "std": 85.6987
+      }
+    },
+    "tag_pair_metrics": {
+      "tag_delta_pearson": {
+        "mean": 0.3142,
+        "std": 0.0302
+      },
+      "tag_delta_spearman": {
+        "mean": 0.3506,
+        "std": 0.0289
+      },
+      "tag_delta_rmse": {
+        "mean": 6.7485,
+        "std": 0.1826
+      },
+      "tag_delta_mae": {
+        "mean": 4.6472,
+        "std": 0.1598
+      },
+      "tag_ordering_acc": {
+        "mean": 0.9317,
+        "std": 0.0073
+      }
+    },
+    "substitution_pair_metrics": {
+      "sub_delta_pearson": {
+        "mean": 0.3646,
+        "std": 0.0304
+      },
+      "sub_delta_spearman": {
+        "mean": 0.4073,
+        "std": 0.0296
+      },
+      "sub_delta_rmse": {
+        "mean": 7.8168,
+        "std": 0.2013
+      },
+      "sub_delta_mae": {
+        "mean": 5.4567,
+        "std": 0.1622
+      },
+      "sub_ordering_acc": {
+        "mean": 0.6734,
+        "std": 0.0114
+      }
+    }
+  },
   "ESM3-small": {
     "n_seeds": 10,
     "test_metrics": {
