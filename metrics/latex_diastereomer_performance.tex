@@ -1,23 +1,26 @@
-\begin{table}[htbp]
-  \caption{Diastereomer-pair performance (D/L-Phe pairs, test set; mean $\pm$ std over seeds; bold denotes best per column).}
+\begin{table*}[htbp]
+  \caption{Diastereomer-pair (D-Phe/L-Phe) performance, test set (mean $\pm$ std over seeds; bold denotes best per column). Metrics: pairwise ordering accuracy (Pairwise Acc.) at ranking each pair correctly by predicted vs.\ true \%B, and the Pearson ($\Delta r$), Spearman ($\Delta\rho$), and Kendall ($\Delta\tau$) correlation, area under the ROC curve ($\Delta$AUC), root mean squared error ($\Delta$RMSE), and mean absolute error ($\Delta$MAE) of the predicted vs.\ true \%B delta within each pair.}
   \label{tab:diastereomer_performance}
   \centering
-  \small
+  \scriptsize
+  \setlength{\tabcolsep}{6pt}
   \begin{tabular}{lccccccc}
     \toprule
-    \textbf{Model} & \rotatebox{45}{\textbf{Pairwise Acc.}} & \rotatebox{45}{\textbf{$\Delta$ Pearson}} & \rotatebox{45}{\textbf{$\Delta$ Spearman}} & \rotatebox{45}{\textbf{$\Delta$ Kendall}} & \rotatebox{45}{\textbf{$\Delta$ AUC}} & \rotatebox{45}{\textbf{$\Delta$ RMSE}} & \rotatebox{45}{\textbf{$\Delta$ MAE}} \\
+    \textbf{Model} & \textbf{Pairwise Acc.} & \textbf{$\Delta$ Pearson} & \textbf{$\Delta$ Spearman} & \textbf{$\Delta$ Kendall} & \textbf{$\Delta$ AUC} & \textbf{$\Delta$ RMSE} & \textbf{$\Delta$ MAE} \\
     \midrule
-  GIN & \makecell{0.632 \\ $\pm$0.128} & \makecell{0.090 \\ $\pm$0.183} & \makecell{0.116 \\ $\pm$0.204} & \makecell{0.088 \\ $\pm$0.146} & \makecell{0.534 \\ $\pm$0.107} & \makecell{7.167 \\ $\pm$0.276} & \makecell{5.174 \\ $\pm$0.309} \\
-  Pretrained GIN & \textbf{\makecell{0.644 \\ $\pm$0.012}} & \makecell{0.061 \\ $\pm$0.078} & \makecell{0.101 \\ $\pm$0.104} & \makecell{0.073 \\ $\pm$0.072} & \makecell{0.554 \\ $\pm$0.079} & \textbf{\makecell{7.147 \\ $\pm$0.062}} & \textbf{\makecell{5.147 \\ $\pm$0.108}} \\
-  Pretrained PepLand & \makecell{0.639 \\ $\pm$0.005} & \textbf{\makecell{0.189 \\ $\pm$0.014}} & \textbf{\makecell{0.275 \\ $\pm$0.009}} & \textbf{\makecell{0.193 \\ $\pm$0.006}} & \textbf{\makecell{0.614 \\ $\pm$0.009}} & \makecell{7.353 \\ $\pm$0.005} & \makecell{5.554 \\ $\pm$0.004} \\
-  PeptideCLM-2-Hybrid & \makecell{0.639 \\ $\pm$0.007} & \makecell{-0.118 \\ $\pm$0.046} & \makecell{-0.071 \\ $\pm$0.044} & \makecell{-0.044 \\ $\pm$0.029} & \makecell{0.422 \\ $\pm$0.038} & \makecell{7.306 \\ $\pm$0.054} & \makecell{5.475 \\ $\pm$0.053} \\
-  ESM3-small & \makecell{0.600 \\ $\pm$0.040} & \makecell{0.061 \\ $\pm$0.070} & \makecell{0.063 \\ $\pm$0.084} & \makecell{0.042 \\ $\pm$0.055} & \makecell{0.515 \\ $\pm$0.048} & \makecell{7.319 \\ $\pm$0.078} & \makecell{5.512 \\ $\pm$0.086} \\
-  ESMC-300M & \makecell{0.600 \\ $\pm$0.026} & \makecell{0.086 \\ $\pm$0.045} & \makecell{0.125 \\ $\pm$0.059} & \makecell{0.087 \\ $\pm$0.040} & \makecell{0.547 \\ $\pm$0.047} & \makecell{7.213 \\ $\pm$0.069} & \makecell{5.327 \\ $\pm$0.095} \\
-  ESMC-600M & \makecell{0.563 \\ $\pm$0.024} & \makecell{-0.029 \\ $\pm$0.041} & \makecell{-0.029 \\ $\pm$0.038} & \makecell{-0.020 \\ $\pm$0.025} & \makecell{0.451 \\ $\pm$0.023} & \makecell{7.342 \\ $\pm$0.060} & \makecell{5.491 \\ $\pm$0.050} \\
-  Transformer & \makecell{0.593 \\ $\pm$0.058} & \makecell{0.076 \\ $\pm$0.103} & \makecell{0.077 \\ $\pm$0.129} & \makecell{0.051 \\ $\pm$0.086} & \makecell{0.540 \\ $\pm$0.092} & \makecell{7.394 \\ $\pm$0.431} & \makecell{5.441 \\ $\pm$0.411} \\
-  DeepLC & \makecell{0.601 \\ $\pm$0.106} & \makecell{-0.045 \\ $\pm$0.119} & \makecell{-0.042 \\ $\pm$0.179} & \makecell{-0.018 \\ $\pm$0.130} & \makecell{0.433 \\ $\pm$0.105} & \makecell{7.299 \\ $\pm$0.194} & \makecell{5.397 \\ $\pm$0.246} \\
-  DeepRT-CapsNet & \makecell{0.431 \\ $\pm$0.064} & \makecell{-0.063 \\ $\pm$0.071} & \makecell{-0.069 \\ $\pm$0.053} & \makecell{-0.047 \\ $\pm$0.038} & \makecell{0.439 \\ $\pm$0.025} & \makecell{7.882 \\ $\pm$0.396} & \makecell{6.011 \\ $\pm$0.388} \\
-  Morgan FP MLP & \makecell{0.622 \\ $\pm$0.020} & \makecell{-0.043 \\ $\pm$0.056} & \makecell{-0.031 \\ $\pm$0.049} & \makecell{-0.025 \\ $\pm$0.031} & \makecell{0.527 \\ $\pm$0.022} & \makecell{7.744 \\ $\pm$0.236} & \makecell{5.616 \\ $\pm$0.142} \\
+    GIN & 0.63 $\pm$ 0.13 & 0.09 $\pm$ 0.18 & 0.12 $\pm$ 0.20 & 0.09 $\pm$ 0.15 & 0.53 $\pm$ 0.11 & 7.17 $\pm$ 0.28 & 5.17 $\pm$ 0.31 \\
+    Pretrained GIN & \textbf{0.64 $\pm$ 0.01} & 0.06 $\pm$ 0.08 & 0.10 $\pm$ 0.10 & 0.07 $\pm$ 0.07 & 0.55 $\pm$ 0.08 & \textbf{7.15 $\pm$ 0.06} & \textbf{5.15 $\pm$ 0.11} \\
+    Pretrained PepLand & 0.64 $\pm$ 0.00 & \textbf{0.19 $\pm$ 0.01} & \textbf{0.28 $\pm$ 0.01} & \textbf{0.19 $\pm$ 0.01} & \textbf{0.61 $\pm$ 0.01} & 7.35 $\pm$ 0.00 & 5.55 $\pm$ 0.00 \\
+    PeptideCLM-2-Hybrid & 0.64 $\pm$ 0.01 & -0.12 $\pm$ 0.05 & -0.07 $\pm$ 0.04 & -0.04 $\pm$ 0.03 & 0.42 $\pm$ 0.04 & 7.31 $\pm$ 0.05 & 5.48 $\pm$ 0.05 \\
+    ChemBERTa-2-MLM & 0.63 $\pm$ 0.02 & 0.17 $\pm$ 0.02 & 0.21 $\pm$ 0.03 & 0.14 $\pm$ 0.02 & 0.57 $\pm$ 0.02 & 7.33 $\pm$ 0.01 & 5.54 $\pm$ 0.01 \\
+    ChemBERTa-2-MTR & 0.63 $\pm$ 0.03 & 0.18 $\pm$ 0.03 & 0.24 $\pm$ 0.04 & 0.17 $\pm$ 0.03 & 0.61 $\pm$ 0.03 & 7.40 $\pm$ 0.00 & 5.60 $\pm$ 0.00 \\
+    ESM3-small & 0.60 $\pm$ 0.04 & 0.06 $\pm$ 0.07 & 0.06 $\pm$ 0.08 & 0.04 $\pm$ 0.06 & 0.52 $\pm$ 0.05 & 7.32 $\pm$ 0.08 & 5.51 $\pm$ 0.09 \\
+    ESMC-300M & 0.60 $\pm$ 0.03 & 0.09 $\pm$ 0.04 & 0.12 $\pm$ 0.06 & 0.09 $\pm$ 0.04 & 0.55 $\pm$ 0.05 & 7.21 $\pm$ 0.07 & 5.33 $\pm$ 0.10 \\
+    ESMC-600M & 0.56 $\pm$ 0.02 & -0.03 $\pm$ 0.04 & -0.03 $\pm$ 0.04 & -0.02 $\pm$ 0.03 & 0.45 $\pm$ 0.02 & 7.34 $\pm$ 0.06 & 5.49 $\pm$ 0.05 \\
+    Transformer & 0.59 $\pm$ 0.06 & 0.08 $\pm$ 0.10 & 0.08 $\pm$ 0.13 & 0.05 $\pm$ 0.09 & 0.54 $\pm$ 0.09 & 7.39 $\pm$ 0.43 & 5.44 $\pm$ 0.41 \\
+    DeepLC & 0.60 $\pm$ 0.11 & -0.05 $\pm$ 0.12 & -0.04 $\pm$ 0.18 & -0.02 $\pm$ 0.13 & 0.43 $\pm$ 0.11 & 7.30 $\pm$ 0.19 & 5.40 $\pm$ 0.25 \\
+    DeepRT-CapsNet & 0.43 $\pm$ 0.06 & -0.06 $\pm$ 0.07 & -0.07 $\pm$ 0.05 & -0.05 $\pm$ 0.04 & 0.44 $\pm$ 0.02 & 7.88 $\pm$ 0.40 & 6.01 $\pm$ 0.39 \\
+    Morgan FP MLP & 0.62 $\pm$ 0.02 & -0.04 $\pm$ 0.06 & -0.03 $\pm$ 0.05 & -0.02 $\pm$ 0.03 & 0.53 $\pm$ 0.02 & 7.74 $\pm$ 0.24 & 5.62 $\pm$ 0.14 \\
     \bottomrule
   \end{tabular}
-\end{table}
+\end{table*}

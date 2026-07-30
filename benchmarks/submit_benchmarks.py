@@ -139,6 +139,26 @@ BENCHMARKS: dict[str, dict] = {
         "gpus":    1,
         "extra":   ["--model", "mtr_base"],
     },
+    # ChemBERTa-2 (Ahmad et al. 2022) — the general-purpose small-molecule
+    # SMILES LM in the suite, added at reviewer request. Both headline 77M
+    # variants (MLM and MTR objectives). Requires
+    # benchmarks/pretrained_weights/chemberta2_{key}_embeddings.pt to exist:
+    #   python benchmarks/chemberta2_precompute_embeddings.py --model mlm_77m,mtr_77m
+    # The backbone is tiny (~3M params, 3 layers) so these are cheap.
+    "chemberta2_mlm_77m": {
+        "script":  "benchmarks/chemberta2_embedding.py",
+        "time":    "0-04:00",
+        "mem":     "32G",
+        "gpus":    1,
+        "extra":   ["--model", "mlm_77m"],
+    },
+    "chemberta2_mtr_77m": {
+        "script":  "benchmarks/chemberta2_embedding.py",
+        "time":    "0-04:00",
+        "mem":     "32G",
+        "gpus":    1,
+        "extra":   ["--model", "mtr_77m"],
+    },
 }
 
 # Root of the repository (one level up from this file)
