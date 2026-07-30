@@ -24,6 +24,8 @@
 #
 #SBATCH --job-name=noncanonical
 #SBATCH --array=0-29
+#SBATCH --partition=kempner
+#SBATCH --account=kempner_mzitnik_lab
 #SBATCH --time=0-08:00
 #SBATCH --gres=gpu:1
 #SBATCH --mem=64G
@@ -35,6 +37,13 @@
 
 set -euo pipefail
 
+module load python
+module load cuda/12.9.1-fasrc01
+
+# The `deeprt` env, as used by submit.sh for every benchmark. PepLand only needs
+# its separate `pepland_gpu` env for the precompute step (dgl's GPU wheels pin an
+# incompatible torch); pepland.py itself just reads the cached embeddings, so it
+# runs here like the rest.
 CONDA_ENV="$HOME/.conda/envs/deeprt"
 EPOCHS=1000
 
