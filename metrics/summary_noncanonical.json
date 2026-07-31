@@ -1,0 +1,248 @@
+{
+  "GIN": {
+    "n_seeds": 3,
+    "test_metrics": {
+      "mse": {
+        "mean": 48.4137,
+        "std": 2.9646
+      },
+      "rmse": {
+        "mean": 6.9559,
+        "std": 0.2113
+      },
+      "mae": {
+        "mean": 4.985,
+        "std": 0.1732
+      },
+      "mean_error": {
+        "mean": -1.0104,
+        "std": 0.3776
+      },
+      "r2": {
+        "mean": 0.4964,
+        "std": 0.0308
+      },
+      "pearson": {
+        "mean": 0.7182,
+        "std": 0.0196
+      },
+      "spearman": {
+        "mean": 0.7402,
+        "std": 0.0384
+      },
+      "kendall": {
+        "mean": 0.5619,
+        "std": 0.0318
+      }
+    },
+    "stereo_metrics": {},
+    "stereo_trainval_metrics": {},
+    "tag_pair_metrics": {},
+    "substitution_pair_metrics": {}
+  },
+  "Pretrained GIN": {
+    "n_seeds": 3,
+    "test_metrics": {
+      "mse": {
+        "mean": 69.4669,
+        "std": 4.3972
+      },
+      "rmse": {
+        "mean": 8.3319,
+        "std": 0.2615
+      },
+      "mae": {
+        "mean": 5.9979,
+        "std": 0.2157
+      },
+      "mean_error": {
+        "mean": -2.7428,
+        "std": 0.3684
+      },
+      "r2": {
+        "mean": 0.2774,
+        "std": 0.0457
+      },
+      "pearson": {
+        "mean": 0.6088,
+        "std": 0.0267
+      },
+      "spearman": {
+        "mean": 0.6401,
+        "std": 0.043
+      },
+      "kendall": {
+        "mean": 0.4644,
+        "std": 0.0354
+      }
+    },
+    "stereo_metrics": {},
+    "stereo_trainval_metrics": {},
+    "tag_pair_metrics": {},
+    "substitution_pair_metrics": {}
+  },
+  "Transformer": {
+    "n_seeds": 3,
+    "test_metrics": {
+      "mse": {
+        "mean": 65.7456,
+        "std": 9.3866
+      },
+      "rmse": {
+        "mean": 8.0948,
+        "std": 0.5731
+      },
+      "mae": {
+        "mean": 5.9506,
+        "std": 0.4878
+      },
+      "mean_error": {
+        "mean": -4.2474,
+        "std": 0.9916
+      },
+      "r2": {
+        "mean": 0.3162,
+        "std": 0.0976
+      },
+      "pearson": {
+        "mean": 0.7156,
+        "std": 0.0163
+      },
+      "spearman": {
+        "mean": 0.7612,
+        "std": 0.0193
+      },
+      "kendall": {
+        "mean": 0.5758,
+        "std": 0.0218
+      }
+    },
+    "stereo_metrics": {},
+    "stereo_trainval_metrics": {},
+    "tag_pair_metrics": {},
+    "substitution_pair_metrics": {}
+  },
+  "DeepLC": {
+    "n_seeds": 3,
+    "test_metrics": {
+      "mse": {
+        "mean": 59.2454,
+        "std": 2.6206
+      },
+      "rmse": {
+        "mean": 7.6958,
+        "std": 0.1711
+      },
+      "mae": {
+        "mean": 5.6585,
+        "std": 0.142
+      },
+      "mean_error": {
+        "mean": -2.2536,
+        "std": 0.8511
+      },
+      "r2": {
+        "mean": 0.3838,
+        "std": 0.0273
+      },
+      "pearson": {
+        "mean": 0.6891,
+        "std": 0.0069
+      },
+      "spearman": {
+        "mean": 0.7554,
+        "std": 0.007
+      },
+      "kendall": {
+        "mean": 0.5657,
+        "std": 0.0069
+      }
+    },
+    "stereo_metrics": {},
+    "stereo_trainval_metrics": {},
+    "tag_pair_metrics": {},
+    "substitution_pair_metrics": {}
+  },
+  "DeepRT-CapsNet": {
+    "n_seeds": 3,
+    "test_metrics": {
+      "mse": {
+        "mean": 70.2549,
+        "std": 10.8976
+      },
+      "rmse": {
+        "mean": 8.3651,
+        "std": 0.648
+      },
+      "mae": {
+        "mean": 6.3249,
+        "std": 0.4648
+      },
+      "mean_error": {
+        "mean": -2.96,
+        "std": 0.8612
+      },
+      "r2": {
+        "mean": 0.2692,
+        "std": 0.1134
+      },
+      "pearson": {
+        "mean": 0.6171,
+        "std": 0.0433
+      },
+      "spearman": {
+        "mean": 0.6337,
+        "std": 0.05
+      },
+      "kendall": {
+        "mean": 0.452,
+        "std": 0.0385
+      }
+    },
+    "stereo_metrics": {},
+    "stereo_trainval_metrics": {},
+    "tag_pair_metrics": {},
+    "substitution_pair_metrics": {}
+  },
+  "Morgan FP MLP": {
+    "n_seeds": 3,
+    "test_metrics": {
+      "mse": {
+        "mean": 105.453,
+        "std": 8.9298
+      },
+      "rmse": {
+        "mean": 10.263,
+        "std": 0.4326
+      },
+      "mae": {
+        "mean": 7.4782,
+        "std": 0.2616
+      },
+      "mean_error": {
+        "mean": -3.0374,
+        "std": 0.2715
+      },
+      "r2": {
+        "mean": -0.0969,
+        "std": 0.0929
+      },
+      "pearson": {
+        "mean": 0.3915,
+        "std": 0.0375
+      },
+      "spearman": {
+        "mean": 0.3989,
+        "std": 0.0465
+      },
+      "kendall": {
+        "mean": 0.2858,
+        "std": 0.0318
+      }
+    },
+    "stereo_metrics": {},
+    "stereo_trainval_metrics": {},
+    "tag_pair_metrics": {},
+    "substitution_pair_metrics": {}
+  }
+}
