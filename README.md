@@ -125,6 +125,30 @@ No `[UNK]` is emitted to flag the loss. Under this tokenization **both members o
 
 Both scripts assert these properties and abort rather than report a chance-level number. The same check was run on PepLand and PeptideCLM-2 (0 identical-embedding pairs each), confirming their near-chance discrimination scores reflect the models rather than preprocessing.
 
+### How ChemBERTa-2 represents chirality
+
+Once tokenized correctly, it is worth being precise about *where* the stereochemical information sits, because it is not where you might assume.
+
+**ChemBERTa-2 has no standalone `@` or `@@` token.** Neither symbol appears in `vocab.json` at all. Chirality is instead carried inside **whole bracket-atom tokens**, of which 25 of the 591 vocabulary entries contain an `@`:
+
+```
+[C@H]  -> id  33      [C@]  -> id  55      [S@]  -> id 108      [N@+]    -> id 362
+[C@@H] -> id  35      [C@@] -> id  56      [S@@] -> id 111      [13C@@H] -> id 464
+```
+
+So the D- and L-forms of a residue *are* distinguishable — `[C@@H]` (id 35) and `[C@H]` (id 33) are separate vocabulary entries with independently learned embeddings — but the distinction is made at the granularity of an entire atom rather than by a reusable chirality marker.
+
+This has a consequence for what the model can generalize. Because no shared symbol means "inverted configuration," **chirality cannot be represented compositionally.** A priori, `[C@H]` and `[C@@H]` are two arbitrary token IDs, no more related to each other than `[C@H]` is to `[nH]`; nothing in the tokenization pressures the model to place them in any particular relationship, or to encode the D→L flip as a consistent direction shared across atom types. Any such structure has to be learned separately for each of the 25 chiral atom tokens, from whatever stereochemical signal the pretraining objective happens to provide.
+
+For contrast, the earlier **ChemBERTa v1** (`seyonec/ChemBERTa-zinc-base-v1`) *does* tokenize `@` and `@@` as standalone symbols:
+
+```
+v1:  N [ C @@ H ]( Cc 1 ccccc 1 ) C (= O ) O        # '@@' is its own token
+v2:  N [C@@H] ( C c 1 c c c c c 1 ) C ( = O ) O     # chirality inside the atom token
+```
+
+In v1 a single embedding could in principle carry "configuration inverted" across every atom type. In v2 that factorization is unavailable by construction. We note this as a structural observation about the representation, not as a measured cause of the discrimination results.
+
 ---
 
 ## Evaluation Metrics
