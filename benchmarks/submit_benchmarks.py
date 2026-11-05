@@ -140,8 +140,8 @@ BENCHMARKS: dict[str, dict] = {
         "extra":   ["--model", "mtr_base"],
     },
     # ChemBERTa-2 (Ahmad et al. 2022) — the general-purpose small-molecule
-    # SMILES LM in the suite, added at reviewer request. Both headline 77M
-    # variants (MLM and MTR objectives). Requires
+    # SMILES LM in the suite. Both headline 77M variants (MLM and MTR
+    # objectives). Requires
     # benchmarks/pretrained_weights/chemberta2_{key}_embeddings.pt to exist:
     #   python benchmarks/chemberta2_precompute_embeddings.py --model mlm_77m,mtr_77m
     # The backbone is tiny (~3M params, 3 layers) so these are cheap.

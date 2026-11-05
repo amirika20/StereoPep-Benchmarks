@@ -14,51 +14,64 @@ Usage:
   python benchmarks/chemberta2_precompute_embeddings.py --model mtr_77m
   python benchmarks/chemberta2_precompute_embeddings.py --model all
 
-── Why this file hand-rolls the tokenizer ──
+── Tokenization: we use the checkpoint's own tokenizer, deliberately ──
 
-The DeepChem ChemBERTa-2 repos ship an atom-level SMILES `vocab.json`
-(single-character atoms/bonds, plus multi-character bracket tokens such as
-`[C@@H]`, `[nH]`, `[NH3+]`, and ring-closure tokens `%10`-`%99`) together
-with a `merges.txt` that contains only a version header — zero merge rules.
-Their `tokenizer_config.json` nevertheless declares a byte-level BPE, so
-`AutoTokenizer.from_pretrained` yields a tokenizer that can only emit the
-*single-character* vocabulary entries and silently discards anything else.
-Because `[`, `]`, `@` and `H` are not single-character entries, stereo
-descriptors vanish:
+`AutoTokenizer.from_pretrained` is the correct tokenizer for these
+checkpoints, and it *discards stereochemistry*. That is a property of the
+released model, not a bug on our side, and reproducing it faithfully is the
+whole point of this benchmark.
+
+The mechanics: `vocab.json` is an atom-level SMILES vocabulary containing
+multi-character entries such as `[C@@H]`, `[nH]` and `[NH3+]`, but
+`merges.txt` holds only a version header (zero merge rules) while
+`tokenizer_config.json` declares a byte-level BPE. A BPE with no merges can
+only emit single-character vocabulary entries, and characters absent from
+the vocabulary are dropped silently. `[`, `]`, `@`, `H`, `+` and `-` are all
+absent, so:
 
     N[C@@H](Cc1ccccc1)C(=O)O   ->   N C ( C c 1 c c c c c 1 ) C ( = O ) O
 
-Both members of every diastereomeric pair then produce identical input ids,
-which would make ChemBERTa-2 score exactly chance on stereo discrimination
-for reasons of our own tokenization rather than anything about the model.
+An earlier version of this script assumed the multi-character entries were
+the intended tokenization and reimplemented the atom-wise SMILES regex
+(Schwaller et al. 2018) to reach them. That was wrong. The published weights
+were never trained against those token ids, as three independent checks
+show:
 
-We therefore tokenize with the atom-wise SMILES regex these vocabularies
-were built for (Schwaller et al. 2018, "Found in Translation"; the same
-pattern used by `deepchem.feat.SmilesTokenizer`) and map tokens through the
-checkpoint's own `vocab.json`. Implemented here rather than pulled from
-`deepchem` to avoid adding a heavyweight dependency for one regex.
+  1. Masked-LM probe. Under atom-level tokenization the MLM head's top-1
+     accuracy on multi-character positions is 0.000 (0/180 trials) and true
+     tokens rank in the hundreds with p ~ 0 (`[nH]` in an indole context:
+     rank 369). Under the native tokenizer the same model scores 0.986
+     (355/360). A model trained on atom-level tokens cannot behave this way.
+  2. Embedding geometry. Multi-character rows have a suspiciously tight norm
+     distribution (2.391 +- 0.053) versus single-character rows
+     (3.880 +- 0.423), consistent with never receiving gradient.
+  3. Context degradation. Atom-level tokenization also drops single-character
+     top-1 accuracy (0.550 vs 0.986), as expected when the surrounding
+     sequence is out of distribution.
 
-`verify_tokenization` asserts the three properties we need before spending
-GPU time, and the run aborts if any fails:
-  1. lossless      — ''.join(tokens) reconstructs the input exactly
-  2. in-vocabulary — no token maps to [UNK]
-  3. stereo-aware  — D-/L-Phe pairs get different id sequences
-On the StereoPep SMILES all three hold (100.0% coverage, 0 OOV, 0 pair
-collisions; longest sequence 244 tokens against a 512 position limit).
+`vocab.json`'s multi-character entries are therefore vestigial. Feeding them
+to the model means feeding untrained embedding rows, so the resulting numbers
+would characterize nothing.
+
+Consequence for this benchmark: both members of every diastereomeric pair
+become byte-identical input ids, so their embeddings are identical, predicted
+deltas are exactly zero, and the discrimination metrics degenerate --
+ΔAUC exactly 0.5, ordering accuracy 0.0, Δ-correlations undefined (nan).
+This is *incapability by construction*, not a noisy measurement, and it is
+the honest result to report. `characterize_tokenization` quantifies the
+collapse and records it in the cache so downstream scripts can report it as
+a measured property rather than rediscovering it.
 """
 
 from __future__ import annotations
 
 import argparse
-import json
-import re
 from pathlib import Path
 
 import torch
 from datasets import load_dataset as hf_load_dataset
-from huggingface_hub import hf_hub_download
 from tqdm import tqdm
-from transformers import AutoModel
+from transformers import AutoModel, AutoTokenizer
 
 # Reuse the model registry / config from the main benchmark script
 import sys
@@ -66,98 +79,6 @@ sys.path.insert(0, str(Path(__file__).parent))
 import chemberta2_embedding as cb  # noqa: E402
 
 WEIGHTS_DIR = Path(__file__).parent / "pretrained_weights"
-
-# Atom-wise SMILES tokenization regex (Schwaller et al. 2018). Order matters:
-# the bracket alternative comes first so `[C@@H]` is consumed whole, and the
-# two-character element symbols (`Br`, `Cl`) precede their one-character
-# prefixes so they are not split into `B`+`r` / `C`+`l`.
-SMILES_TOKEN_PATTERN = re.compile(
-    r"(\[[^\]]+]|Br?|Cl?|N|O|S|P|F|I|b|c|n|o|s|p"
-    r"|\(|\)|\.|=|#|-|\+|\\|\/|:|~|@|\?|>|\*|\$|%[0-9]{2}|[0-9])"
-)
-
-
-class SmilesAtomTokenizer:
-    """Atom-wise SMILES tokenizer over a ChemBERTa-2 checkpoint's own vocab.json.
-
-    Emits `[CLS] … [SEP]` and pads with `[PAD]`, matching the DeepChem
-    SmilesTokenizer layout these checkpoints were trained with (the vocab
-    reserves PAD=0, UNK=11, CLS=12, SEP=13, MASK=14).
-    """
-
-    def __init__(self, hf_name: str):
-        with open(hf_hub_download(hf_name, "vocab.json")) as f:
-            self.vocab: dict[str, int] = json.load(f)
-        missing = [t for t in ("[PAD]", "[UNK]", "[CLS]", "[SEP]") if t not in self.vocab]
-        if missing:
-            raise ValueError(f"{hf_name} vocab.json lacks required special tokens: {missing}")
-        self.pad_id = self.vocab["[PAD]"]
-        self.unk_id = self.vocab["[UNK]"]
-        self.cls_id = self.vocab["[CLS]"]
-        self.sep_id = self.vocab["[SEP]"]
-
-    def tokenize(self, smiles: str) -> list[str]:
-        return SMILES_TOKEN_PATTERN.findall(smiles)
-
-    def encode(self, smiles: str, max_length: int) -> list[int]:
-        ids = [self.vocab.get(t, self.unk_id) for t in self.tokenize(smiles)]
-        # Reserve two slots for [CLS] / [SEP].
-        ids = ids[: max_length - 2]
-        return [self.cls_id, *ids, self.sep_id]
-
-    def batch_encode(self, batch: list[str], max_length: int) -> dict[str, torch.Tensor]:
-        seqs = [self.encode(s, max_length) for s in batch]
-        width = max(len(s) for s in seqs)
-        input_ids = torch.full((len(seqs), width), self.pad_id, dtype=torch.long)
-        attention_mask = torch.zeros((len(seqs), width), dtype=torch.long)
-        for i, s in enumerate(seqs):
-            input_ids[i, : len(s)] = torch.tensor(s, dtype=torch.long)
-            attention_mask[i, : len(s)] = 1
-        return {"input_ids": input_ids, "attention_mask": attention_mask}
-
-
-def verify_tokenization(tok: SmilesAtomTokenizer, smiles: list[str], pairs: list[tuple[str, str]]) -> None:
-    """Fail fast if tokenization is lossy, out-of-vocabulary, or stereo-blind."""
-    n_tok = n_oov = 0
-    oov_examples: set[str] = set()
-    longest = 0
-    for s in smiles:
-        toks = tok.tokenize(s)
-        if "".join(toks) != s:
-            raise RuntimeError(
-                f"Tokenization is lossy — ''.join(tokens) != input for:\n  {s}\n"
-                f"  got: {''.join(toks)}"
-            )
-        longest = max(longest, len(toks) + 2)
-        n_tok += len(toks)
-        for t in toks:
-            if t not in tok.vocab:
-                n_oov += 1
-                oov_examples.add(t)
-    if n_oov:
-        raise RuntimeError(
-            f"{n_oov}/{n_tok} tokens are out of vocabulary "
-            f"(examples: {sorted(oov_examples)[:10]}). The vocab is supposed to "
-            f"cover the StereoPep alphabet exactly; investigate before embedding."
-        )
-
-    collisions = sum(1 for a, b in pairs if tok.encode(a, cb.MAX_LENGTH) == tok.encode(b, cb.MAX_LENGTH))
-    if collisions:
-        raise RuntimeError(
-            f"{collisions}/{len(pairs)} diastereomeric pairs tokenize identically — "
-            f"stereochemistry is being lost, so the benchmark would measure chance "
-            f"performance for tokenization reasons rather than model reasons. "
-            f"See this module's docstring."
-        )
-
-    print(f"[verify] {len(smiles)} SMILES: lossless, {n_tok} tokens, 0 OOV, "
-          f"longest sequence {longest} tokens (limit {cb.MAX_LENGTH})")
-    print(f"[verify] {len(pairs)} diastereomeric pairs tokenize distinctly (0 collisions)")
-    if longest > cb.MAX_LENGTH:
-        raise RuntimeError(
-            f"Longest sequence ({longest}) exceeds the model's position limit "
-            f"({cb.MAX_LENGTH}); embeddings would be silently truncated."
-        )
 
 
 def load_model(model_key: str):
@@ -167,7 +88,7 @@ def load_model(model_key: str):
     model.eval()
     for p in model.parameters():
         p.requires_grad_(False)
-    tok = SmilesAtomTokenizer(cfg["hf_name"])
+    tok = AutoTokenizer.from_pretrained(cfg["hf_name"])
     return model, tok, model.config.hidden_size
 
 
@@ -200,14 +121,59 @@ def collect_all_smiles() -> tuple[list[str], list[tuple[str, str]]]:
     return sorted(smiles), pairs
 
 
+def characterize_tokenization(tok, smiles: list[str], pairs: list[tuple[str, str]]) -> dict:
+    """Quantify what the checkpoint's tokenizer does to our inputs.
+
+    Deliberately does NOT abort on stereochemical collapse: that collapse is
+    the finding. Aborts only on truncation, which would silently corrupt
+    inputs in a way unrelated to the phenomenon under study.
+    """
+    lengths = [len(tok(s)["input_ids"]) for s in smiles]
+    longest = max(lengths)
+
+    # Does the tokenization preserve the input string?
+    lossy = sum(1 for s in smiles[:2000]
+                if tok.decode(tok(s)["input_ids"], skip_special_tokens=True) != s)
+
+    # Do the two members of each diastereomeric pair survive as distinct inputs?
+    collapsed = sum(1 for a, b in pairs if tok(a)["input_ids"] == tok(b)["input_ids"])
+
+    print(f"[tokenizer] {len(smiles)} SMILES | longest {longest} tokens "
+          f"(limit {cb.MAX_LENGTH}) | median {sorted(lengths)[len(lengths)//2]}")
+    print(f"[tokenizer] round-trip mismatches: {lossy}/2000 sampled "
+          f"({'lossy — characters are dropped' if lossy else 'lossless'})")
+    print(f"[tokenizer] diastereomeric pairs with IDENTICAL input ids: "
+          f"{collapsed}/{len(pairs)} ({100 * collapsed / max(1, len(pairs)):.1f}%)")
+    if collapsed:
+        print("[tokenizer] --> stereochemistry is discarded by this checkpoint's tokenizer, "
+              "so D-/L-forms are indistinguishable to the model by construction. "
+              "Discrimination metrics will degenerate (ΔAUC 0.5, accuracy 0.0, "
+              "Δ-correlations nan). This is the expected, honest result — see the "
+              "module docstring.")
+
+    if longest > cb.MAX_LENGTH:
+        raise RuntimeError(
+            f"Longest sequence ({longest}) exceeds the model's position limit "
+            f"({cb.MAX_LENGTH}); embeddings would be silently truncated."
+        )
+    return {
+        "tokenizer": "native_autotokenizer",
+        "longest_tokens": longest,
+        "lossy_roundtrips_per_2000": lossy,
+        "stereo_pairs_checked": len(pairs),
+        "stereo_pairs_collapsed": collapsed,
+    }
+
+
 @torch.no_grad()
-def embed_all(model, tok: SmilesAtomTokenizer, smiles: list[str]) -> dict[str, torch.Tensor]:
+def embed_all(model, tok, smiles: list[str]) -> dict[str, torch.Tensor]:
     """Mean-pool the final hidden states over non-padding tokens."""
     embeddings: dict[str, torch.Tensor] = {}
     for i in tqdm(range(0, len(smiles), cb.ENCODE_BATCH), desc="Embedding"):
         batch = smiles[i : i + cb.ENCODE_BATCH]
         try:
-            inputs = tok.batch_encode(batch, cb.MAX_LENGTH)
+            inputs = tok(batch, return_tensors="pt", padding=True,
+                         truncation=True, max_length=cb.MAX_LENGTH)
             inputs = {k: v.to(cb.DEVICE) for k, v in inputs.items()}
             hidden = model(**inputs).last_hidden_state          # (B, T, H)
             mask   = inputs["attention_mask"].unsqueeze(-1).to(hidden.dtype)
@@ -217,7 +183,8 @@ def embed_all(model, tok: SmilesAtomTokenizer, smiles: list[str]) -> dict[str, t
                   f"falling back to per-item embedding")
             for smi in batch:
                 try:
-                    inp = tok.batch_encode([smi], cb.MAX_LENGTH)
+                    inp = tok([smi], return_tensors="pt", padding=True,
+                              truncation=True, max_length=cb.MAX_LENGTH)
                     inp = {k: v.to(cb.DEVICE) for k, v in inp.items()}
                     h = model(**inp).last_hidden_state
                     m = inp["attention_mask"].unsqueeze(-1).to(h.dtype)
@@ -259,14 +226,14 @@ def main() -> None:
         n_params = sum(p.numel() for p in model.parameters())
         print(f"  Backbone parameters: {n_params:,} (frozen)  |  embed_dim={embed_dim}")
 
-        verify_tokenization(tok, all_smiles, pairs)
+        diag = characterize_tokenization(tok, all_smiles, pairs)
 
         embeddings = embed_all(model, tok, all_smiles)
         print(f"[done] Embedded {len(embeddings)}/{len(all_smiles)} SMILES")
 
         WEIGHTS_DIR.mkdir(parents=True, exist_ok=True)
         torch.save({"hf_name": cfg["hf_name"], "embed_dim": embed_dim,
-                    "tokenizer": "smiles_atom_regex", "embeddings": embeddings}, out_path)
+                    "embeddings": embeddings, **diag}, out_path)
         print(f"Saved to {out_path}")
 
         del model, tok

@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# SLURM array job: the non-canonical (D-Phe-only) ablation promised during review.
+# SLURM array job: the non-canonical (D-Phe-only) ablation.
 #
 # Complement of the natural (canonical-only) sweep. The two subsets partition the
 # full dataset exactly, so together they answer the complementary questions:

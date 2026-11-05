@@ -1,5 +1,5 @@
 """
-Learning curve for the Pretrained GIN benchmark (reviewer request).
+Learning curve for the Pretrained GIN benchmark.
 
 Reuses benchmarks/pretrained_gin.py as-is (imported as a module, not
 duplicated) — same architecture, same pretrained ZINC15/bio-assay GIN

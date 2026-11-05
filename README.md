@@ -205,10 +205,6 @@ StereoPep-Benchmarks/
 │   ├── summary_noncanonical.*    # D-Phe-only ablation
 │   └── latex_*.tex               # Auto-generated LaTeX tables for the paper
 │
-├── rebuttal/                     # Discussion-period response notes
-│   ├── chemberta2_results.md     # ChemBERTa-2 baseline write-up
-│   └── noncanonical_ablation_results.md
-│
 ├── figures/                      # Auto-generated plots (bar charts, scatter, radar)
 ├── submit.sh                     # Generic SLURM submission helper
 └── requirements.txt

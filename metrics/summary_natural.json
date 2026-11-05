@@ -167,36 +167,36 @@
     "n_seeds": 3,
     "test_metrics": {
       "mse": {
-        "mean": 50.0057,
-        "std": 5.4629
+        "mean": 48.1844,
+        "std": 5.1291
       },
       "rmse": {
-        "mean": 7.0644,
-        "std": 0.3883
+        "mean": 6.935,
+        "std": 0.3667
       },
       "mae": {
-        "mean": 4.6916,
-        "std": 0.2718
+        "mean": 4.5147,
+        "std": 0.2347
       },
       "mean_error": {
-        "mean": -2.8533,
-        "std": 0.384
+        "mean": -2.7311,
+        "std": 0.4666
       },
       "r2": {
-        "mean": 0.5142,
-        "std": 0.0531
+        "mean": 0.5319,
+        "std": 0.0498
       },
       "pearson": {
-        "mean": 0.7871,
-        "std": 0.022
+        "mean": 0.7918,
+        "std": 0.0106
       },
       "spearman": {
-        "mean": 0.8396,
-        "std": 0.0242
+        "mean": 0.8554,
+        "std": 0.0093
       },
       "kendall": {
-        "mean": 0.6611,
-        "std": 0.027
+        "mean": 0.6768,
+        "std": 0.0102
       }
     },
     "stereo_metrics": {},
@@ -208,36 +208,36 @@
     "n_seeds": 3,
     "test_metrics": {
       "mse": {
-        "mean": 58.3072,
-        "std": 3.8839
+        "mean": 65.4044,
+        "std": 6.4446
       },
       "rmse": {
-        "mean": 7.6331,
-        "std": 0.2523
+        "mean": 8.0806,
+        "std": 0.4031
       },
       "mae": {
-        "mean": 5.3193,
-        "std": 0.2481
+        "mean": 5.5608,
+        "std": 0.3235
       },
       "mean_error": {
-        "mean": -3.6482,
-        "std": 0.3068
+        "mean": -3.1968,
+        "std": 0.2524
       },
       "r2": {
-        "mean": 0.4336,
-        "std": 0.0377
+        "mean": 0.3646,
+        "std": 0.0626
       },
       "pearson": {
-        "mean": 0.7662,
-        "std": 0.0138
+        "mean": 0.6853,
+        "std": 0.0393
       },
       "spearman": {
-        "mean": 0.8127,
-        "std": 0.0088
+        "mean": 0.7307,
+        "std": 0.0391
       },
       "kendall": {
-        "mean": 0.6281,
-        "std": 0.0104
+        "mean": 0.549,
+        "std": 0.0353
       }
     },
     "stereo_metrics": {},

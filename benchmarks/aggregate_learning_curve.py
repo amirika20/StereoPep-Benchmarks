@@ -1,6 +1,6 @@
 """
-Aggregate the Pretrained GIN learning curve (reviewer request) into a
-plotting-ready CSV and a figure.
+Aggregate the Pretrained GIN learning curve into a plotting-ready CSV and
+a figure.
 
 Reads all benchmarks/output/learning_curve/results_pretrained_gin_lc_frac*_seed*.json
 files (produced by pretrained_gin_learning_curve.py), averages metrics over

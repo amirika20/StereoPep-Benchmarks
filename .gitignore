@@ -9,6 +9,11 @@ test_benchmarks.py
 __pycache__
 benchmarks/weights
 
+# Local-only material that must not be published: review-period notes and
+# any manuscript PDFs dropped into the repo root (figures/*.pdf are tracked).
+rebuttal/
+/*.pdf
+
 # Precomputed embedding caches — regenerable via
 # benchmarks/pepland_precompute_embeddings.py and
 # benchmarks/peptideclm2_precompute_embeddings.py.

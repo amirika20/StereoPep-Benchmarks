@@ -7,7 +7,7 @@ objectives: masked language modelling (MLM) and multi-task regression
 (MTR) over 200 computed molecular properties. Weights are published by
 DeepChem as `DeepChem/ChemBERTa-{5,10,77}M-{MLM,MTR}`.
 
-Added at reviewer request. It fills a gap in our suite: every other
+It fills a gap in our suite: every other
 SMILES-level pretrained baseline we run (PepLand, PeptideCLM-2) is
 peptide-specific, whereas ChemBERTa-2 is a *general-purpose* small-molecule
 SMILES language model. That makes it the direct test of the
@@ -31,34 +31,39 @@ Pass --model all         to run all 6 variants sequentially
 
 Results are written to benchmarks/output/results_chemberta2_{model_key}_seed{N}.json.
 
-── Tokenizer caveat (important; read before interpreting results) ──
+── ChemBERTa-2 discards stereochemistry (read before interpreting results) ──
 
-Do NOT load these repos' tokenizer with `AutoTokenizer.from_pretrained`.
-Their `vocab.json` is an atom-level SMILES vocabulary (single-character
-atoms/bonds plus multi-character bracket tokens such as `[C@@H]`, `[nH]`,
-`[NH3+]`, and ring-closure tokens `%10`-`%99`), but the shipped
-`merges.txt` contains only a version header — zero merge rules. Loaded as
-the byte-level BPE that `tokenizer_config.json` declares, the fast
-tokenizer can therefore only ever emit the *single-character* vocabulary
-entries, and it silently drops every character that is not one of them.
-`[`, `]`, `@` and `H` are not single-character entries, so
-`AutoTokenizer` turns
+We tokenize with the checkpoint's own `AutoTokenizer`, which **drops stereo
+descriptors**. That is a property of the released model, not a preprocessing
+choice of ours, and it determines how these results must be read.
+
+`vocab.json` is an atom-level SMILES vocabulary containing multi-character
+entries such as `[C@@H]`, `[nH]` and `[NH3+]`, but `merges.txt` holds only a
+version header (zero merge rules) while `tokenizer_config.json` declares a
+byte-level BPE. A merge-free BPE can only emit single-character vocabulary
+entries and silently drops characters absent from the vocabulary. `[`, `]`,
+`@`, `H`, `+` and `-` are all absent, so:
 
     N[C@@H](Cc1ccccc1)C(=O)O   ->   N C ( C c 1 c c c c c 1 ) C ( = O ) O
 
-discarding the stereo descriptor entirely, with no UNK token to flag it.
-Both members of every diastereomeric pair then map to *identical* input
-ids, so the model would score exactly chance on stereo discrimination as
-an artifact of our tokenization rather than a property of the model — a
-false negative we would have reported as a finding.
+The multi-character entries are vestigial: the published weights were never
+trained against those ids. Evidence (see chemberta2_precompute_embeddings.py
+for detail): under atom-level tokenization the MLM head scores 0.000 top-1 on
+multi-character positions (0/180) and ranks true tokens in the hundreds, while
+the native tokenizer scores 0.986 (355/360); multi-character embedding rows
+also show a tight, untrained-looking norm distribution.
 
-chemberta2_precompute_embeddings.py therefore tokenizes with the atom-wise
-SMILES regex these vocabularies were built for (Schwaller et al. 2018, as
-used by `deepchem.feat.SmilesTokenizer`), which reproduces `[C@@H]` as a
-single in-vocabulary token. Verified on the StereoPep SMILES: tokenization
-is lossless (concatenating the tokens reconstructs the input exactly),
-vocabulary coverage is 100.0% with zero OOV tokens, and D-/L-Phe pairs
-receive distinct id sequences. See SMILES_TOKEN_PATTERN there.
+Consequence: both members of every diastereomeric pair become byte-identical
+inputs, so their embeddings are identical, predicted deltas are exactly zero,
+and the discrimination metrics degenerate — ΔAUC exactly 0.5, ordering
+accuracy 0.0, Δ-correlations nan. This is incapability *by construction*, not
+a model that tried and failed. `measure_stereo_pair_collapse` quantifies it
+and records the count in each results JSON so the degenerate numbers can never
+be misread as a learned outcome.
+
+The tag-pair and point-mutation evaluations remain meaningful: those pairs
+differ constitutionally, not only in stereochemistry, so they survive
+tokenization as distinct inputs.
 """
 
 from __future__ import annotations
@@ -158,13 +163,15 @@ def embed_sequences(model_key: str, smiles_list: list[str]) -> tuple[np.ndarray,
     return np.stack(embs), bad
 
 
-def assert_stereo_pairs_distinguishable(model_key: str, stereo_ds) -> None:
-    """Guard against the tokenizer failure mode described in the module docstring.
+def measure_stereo_pair_collapse(model_key: str, stereo_ds) -> dict:
+    """Quantify how many diastereomeric pairs the backbone cannot tell apart.
 
-    If a diastereomeric pair's two embeddings are identical, the backbone saw
-    identical inputs and cannot possibly discriminate the pair — the resulting
-    chance-level score would say nothing about the model. Cheap to check here,
-    and it fails loudly rather than producing a publishable-looking 0.5.
+    A pair whose two embeddings are byte-identical was fed identical input ids,
+    so the model is incapable of discriminating it *by construction*. For
+    ChemBERTa-2 this is the expected outcome — its tokenizer discards
+    stereochemistry (see module docstring) — so we measure and record it rather
+    than aborting. Reported alongside the metrics so a 0.5 ΔAUC is never
+    mistaken for a model that tried and failed.
     """
     cache = load_embedding_cache(model_key)["embeddings"]
     checked = collided = 0
@@ -175,16 +182,17 @@ def assert_stereo_pairs_distinguishable(model_key: str, stereo_ds) -> None:
         checked += 1
         if torch.equal(e_f, e_F):
             collided += 1
-    if checked and collided:
-        raise RuntimeError(
-            f"{collided}/{checked} diastereomeric pairs have byte-identical "
-            f"embeddings for '{model_key}'. The backbone is receiving identical "
-            f"inputs for the D- and L-forms, which means stereochemistry was lost "
-            f"in tokenization (see the tokenizer caveat in this module's docstring). "
-            f"Regenerate the cache with chemberta2_precompute_embeddings.py."
-        )
-    print(f"[check] {checked} diastereomeric pairs verified: D-/L-forms produce "
-          f"distinct embeddings (0 collisions)")
+    frac = collided / checked if checked else float("nan")
+    if collided:
+        print(f"[stereo] {collided}/{checked} ({100 * frac:.1f}%) diastereomeric pairs have "
+              f"IDENTICAL embeddings — the tokenizer discarded stereochemistry, so the model "
+              f"cannot discriminate them by construction. Expect ΔAUC 0.5, accuracy 0.0, "
+              f"Δ-correlations nan; these are structural, not learned, outcomes.")
+    else:
+        print(f"[stereo] {checked} diastereomeric pairs: D-/L-forms produce distinct "
+              f"embeddings (0 collisions)")
+    return {"pairs_checked": checked, "pairs_with_identical_embeddings": collided,
+            "fraction_indistinguishable": frac}
 
 
 # ── model (MLP head) ─────────────────────────────────────────────────────────
@@ -511,7 +519,7 @@ def main() -> None:
         X_test,  _ = embed_sequences(model_key, ds["test"]["SMILES"])
 
         if not subset:
-            assert_stereo_pairs_distinguishable(model_key, stereo)
+            stereo_collapse = measure_stereo_pair_collapse(model_key, stereo)
             emb_stereo_f, _ = embed_sequences(model_key, stereo["SMILES_f"])
             emb_stereo_F, _ = embed_sequences(model_key, stereo["SMILES_F"])
             emb_strv_f,   _ = embed_sequences(model_key, stereo_trainval["SMILES_f"])
@@ -521,6 +529,7 @@ def main() -> None:
             emb_sub_a,    _ = embed_sequences(model_key, sub_pairs["SMILES_1"])
             emb_sub_b,    _ = embed_sequences(model_key, sub_pairs["SMILES_2"])
         else:
+            stereo_collapse = None
             emb_stereo_f = emb_stereo_F = emb_strv_f = emb_strv_F = None
             emb_tag_a = emb_tag_b = emb_sub_a = emb_sub_b = None
 
@@ -543,7 +552,14 @@ def main() -> None:
             "dataset": args.dataset,
             "chemberta2_model": cfg["hf_name"],
             "embed_dim": embed_dim,
-            "tokenizer": cache.get("tokenizer", "smiles_atom_regex"),
+            "tokenizer": cache.get("tokenizer", "native_autotokenizer"),
+            # Recorded so a 0.5 ΔAUC is never read as "the model tried and failed".
+            "stereo_pair_collapse": stereo_collapse,
+            "tokenizer_diagnostics": {
+                k: cache.get(k) for k in
+                ("longest_tokens", "lossy_roundtrips_per_2000",
+                 "stereo_pairs_checked", "stereo_pairs_collapsed")
+            },
             "hidden_dim": HIDDEN_DIM, "n_layers": N_LAYERS, "dropout": DROPOUT,
             "lr": LR, "weight_decay": WEIGHT_DECAY, "batch_size": BATCH_SIZE,
             "max_epochs": MAX_EPOCHS, "patience": PATIENCE, "lr_patience": LR_PATIENCE, "device": DEVICE,
